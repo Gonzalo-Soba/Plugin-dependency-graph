@@ -79,18 +79,26 @@ Jugadores: **A** y **B**.
   - B se asigna "Mesa"; A no puede soltarla salvo como admin, y `/tarea asignar Mesa` de A la reasigna avisando quién la tenía.
   - Con `deop A`, A ya no puede reasignar "Mesa" mientras la tenga B. `/tarea soltar Mesa` de B la libera.
 - [ ] **Títulos sin distinguir mayúsculas ni tildes.** `/tarea info jardin` encuentra "Jardín", y `/tarea crear JARDIN` se rechaza porque ya existe. `/tarea renombrar Jardín Huerta` cambia el nombre en la pestaña y conserva el estado.
-- [ ] **Interfaz: lista.** `/tareas` abre "Tareas del servidor". Las tareas aparecen primero las disponibles (▶, verde), después las bloqueadas (✘, gris) y al final las resueltas (✔, verde oscuro); dentro de cada grupo, por orden alfabético. El tooltip de cada botón muestra estado y asignado.
+- [ ] **Interfaz: lista.** `/tareas` abre "Tareas del servidor" con los proyectos; "General" abre su lista. Las tareas aparecen primero las disponibles (▶, verde), después las bloqueadas (✘, gris) y al final las resueltas (✔, verde oscuro); dentro de cada grupo, por orden alfabético. El tooltip de cada botón muestra estado y asignado.
 - [ ] **Migración del formato 1.** Con el servidor apagado, copiar `dev-server/samples/tasks-30.json` (formato 1) sobre `run/plugins/TaskGraph/tasks.json` y arrancar. El log muestra `Migrated tasks.json to format version 2` y `Loaded 30 tasks in 1 projects`. Aparece `run/plugins/TaskGraph/tasks.v1.json.bak` igual al ejemplo, y `tasks.json` dice `"version": 2` y tiene `"project": "general"` en cada tarea. La pestaña, que ahora se llama "General", y `/tareas` muestran las mismas tareas con el mismo estado. Al reiniciar otra vez no hay una nueva migración.
 - [ ] **Varias pestañas.** Con el servidor apagado, copiar `dev-server/samples/tasks-projects.json` sobre `run/plugins/TaskGraph/tasks.json` y arrancar. El log muestra `Loaded 11 tasks in 3 projects`. La pantalla de logros tiene tres pestañas, en este orden: "General", "Base" y "Minería". Cada raíz muestra el nombre del proyecto y sus resueltas ("3 de 4" en General). En "Base", "Portón" tiene una línea a "Muralla" y dice "También requiere: Juntar madera (en General)"; "Muralla" cuelga del raíz y dice "También requiere: Picar piedra (en General)". "Pico de hierro" cuelga del raíz de "Minería".
 - [ ] **Orden estable de pestañas.** Con el ejemplo anterior, A resuelve `/tarea resolver Horno` y después `/tarea resolver "Pico de hierro"`, y edita una tarea de "Base" (`/tarea desc Pozo Con balde`). Después de cada cambio las pestañas siguen en el mismo orden, el raíz de "Minería" dice "1 de 3" y "Pico de hierro" aparece completada. Lo mismo después de que B sale y vuelve a entrar.
 - [ ] **Pantalla abierta mientras otro resuelve.** B abre la pantalla de logros en la pestaña "Base" y la deja abierta. A resuelve `/tarea resolver Pozo`. B sigue en "Base", la pantalla no se cierra y "Pozo" aparece completada (si hace falta, al cambiar de pestaña y volver). Probarlo también con B en "Minería".
+- [ ] **Proyectos con comandos.** A (op) y B (sin op).
+  - B: `/tarea proyecto crear Base` crea el proyecto y aparece una pestaña "Base" al final, después de las que ya había. `/tarea proyecto crear base` se rechaza (ya existe).
+  - B: `/tarea crear Muralla` y `/tarea mover Muralla Base`: "Muralla" pasa a la pestaña "Base". `/tarea info Muralla` dice "Proyecto: Base". `/tarea mover Muralla Base` otra vez se rechaza ("ya está en el proyecto").
+  - B: `/tarea proyecto renombrar Base Castillo`: la pestaña cambia de nombre y sigue en el mismo lugar. `/tarea proyecto lista` muestra los proyectos con sus resueltas.
+  - B: `/tarea proyecto borrar Castillo` se rechaza: solo admins. A: el mismo comando se rechaza porque tiene tareas y lista "Muralla". A mueve "Muralla" a General y lo vuelve a intentar: el proyecto y su pestaña desaparecen. `/tarea proyecto borrar General` se rechaza siempre.
+- [ ] **Mover una tarea resuelta.** Crear el proyecto "Base" otra vez, resolver una tarea de General sin dependencias y moverla a "Base": aparece completada en "Base", sin toast ni mensaje de logro, y ya no está en General. B sale y vuelve a entrar: sigue igual.
+- [ ] **Interfaz: proyectos.** `/tareas` muestra un botón por proyecto con "(resueltas/total)" y «Nuevo proyecto». Crear uno desde ahí abre su lista vacía. «Nueva tarea» dentro de un proyecto la crea en ese proyecto (su pestaña). En la ficha, «Mover a otro proyecto» lista los demás proyectos y «Volver» lleva a la lista del proyecto nuevo. «Agregar dependencia» muestra "(en General)" en las tareas de otro proyecto. B no ve «Borrar proyecto»; A sí, salvo en General. «Renombrar proyecto» con el mismo nombre dice "No había cambios.".
+- [ ] **Interfaz: proyecto viejo.** A abre la lista de un proyecto vacío y la deja abierta; desde otro cliente, un admin lo borra con `/tarea proyecto borrar`. Cuando A toca «Nueva tarea», ve "Ese proyecto ya no existe." en la lista de proyectos, sin errores en el log.
 - [ ] **Interfaz: lista con 30 tareas.** Con el servidor apagado, copiar `dev-server/samples/tasks-30.json` sobre `run/plugins/TaskGraph/tasks.json` y arrancar. `/tareas` muestra las 30, se puede desplazar hasta el final y el orden por grupos se mantiene. La pestaña de logros también se ve legible.
 - [ ] **Interfaz: crear y editar.** "Nueva tarea" con un ítem en la mano crea la tarea con ese ícono y abre su ficha. Un título repetido muestra el error y conserva lo escrito. "Editar" cambia título y descripción en un solo paso.
 - [ ] **Íconos.** `/tarea icono Madera ` y Tab sugiere ítems; `/tarea icono Madera oak_log` cambia el ícono en la pestaña y en la ficha. `/tarea icono Madera air` se rechaza. En "Nueva tarea", el ícono `DIAMOND` crea la tarea con un diamante aunque tengas otra cosa en la mano; `diamante` muestra el error y conserva lo escrito; vacío usa el ítem en la mano. "Cambiar ícono" en la ficha acepta `minecraft:oak_log`, y vacío con la mano vacía muestra el error.
 - [ ] **Interfaz: ficha y botones.** En la ficha se ve el ícono, la descripción y los datos. "Resolver" solo aparece si está disponible y anuncia en el chat una sola vez. "Agregar dependencia" ofrece solo tareas que no crean ciclos. "Quitar dependencia" lista solo las dependencias actuales.
 - [ ] **Interfaz: permisos.** B no ve "Borrar" en una tarea de A; A como op sí. B ve "Asignarme" en una tarea libre y no lo ve si la tiene otra persona; A como op ve "Reasignarme".
 - [ ] **Interfaz: ventana vieja.** A abre la ficha de una tarea y la deja abierta; B la borra con `/tarea borrar`. Cuando A toca cualquier botón, ve "Esa tarea ya no existe." y vuelve a la lista, sin errores en el log.
-- [ ] **Atajos.** Apretar **G** (acciones rápidas) abre "Tareas del servidor" y "Abrir lista" muestra la lista. En el menú de pausa (Esc) aparece el botón "Tareas del servidor" y hace lo mismo. `/tareas` sigue funcionando.
+- [ ] **Atajos.** Apretar **G** (acciones rápidas) abre "Tareas del servidor" y "Abrir lista" muestra la lista de proyectos. En el menú de pausa (Esc) aparece el botón "Tareas del servidor" y hace lo mismo. `/tareas` sigue funcionando.
 - [ ] **Cerrar sin espera.** En la lista, "Cerrar" vuelve al juego al instante, sin la pantalla "Waiting for Server".
 
 Si algo falla, guardá `run/logs/latest.log`.
@@ -108,16 +116,16 @@ Si el archivo está dañado o tiene datos inválidos (por ejemplo, un ciclo de d
 
 Si el archivo viejo tiene errores, no se convierte ni se toca.
 
-Por ahora los proyectos se crean editando `tasks.json` con el servidor apagado (ver `dev-server/samples/tasks-projects.json`); los comandos para manejarlos llegan más adelante en la 0.4.0.
-
 ## Interfaz
 
-`/tareas` abre la lista de tareas en una ventana del juego. Hay dos atajos más, sin escribir comandos (ver [Atajos](#atajos)). Cada tarea abre su ficha, con botones para asignarse, soltar, resolver, agregar o quitar dependencias, editar, cambiar el ícono y borrar. Cada botón aparece solo si quien mira puede usarlo.
+`/tareas` abre una ventana del juego con la lista de proyectos. Hay dos atajos más, sin escribir comandos (ver [Atajos](#atajos)). Cada proyecto abre su lista de tareas, y cada tarea abre su ficha, con botones para asignarse, soltar, resolver, agregar o quitar dependencias, editar, cambiar el ícono, mover a otro proyecto y borrar. Cada botón aparece solo si quien mira puede usarlo.
 
+- **Proyectos:** cada botón muestra cuántas tareas tiene resueltas, por ejemplo "Base (2/5)". «Nuevo proyecto» crea otro, con su propia pestaña de logros. Dentro de un proyecto están «Renombrar proyecto» y, solo para admins y si no es General, «Borrar proyecto».
 - **Orden de la lista:** primero las disponibles (todas sus dependencias resueltas), después las bloqueadas y al final las resueltas.
-- **Nueva tarea:** el campo «Ícono» es opcional. Acepta el id de un ítem con o sin `minecraft:` y sin distinguir mayúsculas (`diamond`, `minecraft:diamond`, `DIAMOND`). Si queda vacío, el ícono es el ítem que tenés en la mano al tocar «Crear».
+- **Nueva tarea:** se crea en el proyecto que tenés abierto. El campo «Ícono» es opcional. Acepta el id de un ítem con o sin `minecraft:` y sin distinguir mayúsculas (`diamond`, `minecraft:diamond`, `DIAMOND`). Si queda vacío, el ícono es el ítem que tenés en la mano al tocar «Crear».
 - **Cambiar ícono**, en la ficha: el mismo campo. Vacío usa el ítem que tenés en la mano.
-- **Agregar dependencia** solo ofrece tareas que no crearían un ciclo.
+- **Agregar dependencia** solo ofrece tareas que no crearían un ciclo. Las de otro proyecto aparecen con el nombre del proyecto, por ejemplo "Madera (en General)".
+- **Mover a otro proyecto**, en la ficha: aparece cuando hay más de un proyecto. La tarea conserva dependencias, estado y asignado.
 - **Ventanas viejas:** si alguien cambia o borra una tarea mientras otra persona tiene su ficha abierta, los botones vuelven a comprobar todo al tocarse. Cada botón sirve una sola vez y vence a los 5 minutos.
 
 Los comandos `/tarea` siguen disponibles como alternativa, por ejemplo desde la consola.
@@ -129,40 +137,45 @@ Además de `/tareas`, la interfaz se abre desde:
 - **La tecla de acciones rápidas** del juego: **G** por defecto, se puede cambiar en Opciones → Controles.
 - **El botón "Tareas del servidor" del menú de pausa** (Esc).
 
-Los dos abren primero una ventana chica con el botón **Abrir lista**, que lleva a la misma lista que `/tareas`. Ese paso intermedio es necesario porque la ventana del atajo se registra al arrancar el servidor y no puede mostrar las tareas del momento.
+Los dos abren primero una ventana chica con el botón **Abrir lista**, que lleva a la misma lista de proyectos que `/tareas`. Ese paso intermedio es necesario porque la ventana del atajo se registra al arrancar el servidor y no puede mostrar las tareas del momento.
 
 > Si otro plugin o datapack también agrega acciones rápidas, la tecla muestra una lista para elegir entre ellas en lugar de abrir la de tareas directamente. Lo mismo pasa con varios botones en el menú de pausa. `/tareas` funciona siempre igual.
 
 ## Comandos
 
-Escribir `/tarea` sin argumentos muestra la ayuda. Los títulos se autocompletan con Tab.
+Escribir `/tarea` sin argumentos muestra la ayuda. Los títulos de tareas y proyectos se autocompletan con Tab.
 
-Las tareas se nombran por su **título**, que es único: no distingue mayúsculas, tildes ni espacios repetidos ("Jardín" y "jardin" son la misma tarea).
+Las tareas se nombran por su **título**, que es único: no distingue mayúsculas, tildes ni espacios repetidos ("Jardín" y "jardin" son la misma tarea). Los proyectos también se nombran por título, único entre proyectos (un proyecto puede llamarse igual que una tarea).
 
 **Comillas:** cuando un título no es lo último del comando y tiene espacios o tildes, va entre comillas: `/tarea depende "Mesa de trabajo" Madera`. El autocompletado las agrega solo. El último argumento nunca las necesita.
 
 | Comando | Qué hace |
 |---|---|
-| `/tareas` | Abre la interfaz con la lista de tareas (solo jugadores). |
-| `/tarea crear <título>` | Crea una tarea. El ícono es el ítem que tenés en la mano (papel si está vacía); se cambia después con `icono`. |
+| `/tareas` | Abre la interfaz con la lista de proyectos (solo jugadores). |
+| `/tarea crear <título>` | Crea una tarea en General. El ícono es el ítem que tenés en la mano (papel si está vacía); se cambia después con `icono`. Para otro proyecto, usar `mover` o la interfaz. |
 | `/tarea renombrar "<título>" <nuevo título>` | Cambia el título. El estado, las dependencias y el progreso se conservan. |
 | `/tarea desc "<título>" <texto>` | Cambia la descripción. |
 | `/tarea icono "<título>" <ítem>` | Cambia el ícono. Tab sugiere los ítems; acepta `diamond` o `minecraft:diamond`. Se rechazan los que no sirven de ícono, como el aire. |
-| `/tarea depende "<título>" <dependencia>` | Hace que la tarea dependa de otra. Se rechaza si crea un ciclo. Cada dependencia se dibuja con una línea; desde la segunda, también se listan en "También requiere". |
+| `/tarea depende "<título>" <dependencia>` | Hace que la tarea dependa de otra, de cualquier proyecto. Se rechaza si crea un ciclo. Cada dependencia del mismo proyecto se dibuja con una línea; las de otro proyecto y todas desde la segunda se listan en "También requiere". |
 | `/tarea quitardep "<título>" <dependencia>` | Quita una dependencia y su línea. Sin dependencias, la tarea vuelve a colgar del raíz. Tab sugiere solo las dependencias de esa tarea. |
 | `/tarea asignar <título>` | Te asigna la tarea. Si ya está asignada a otra persona se rechaza: esa persona la suelta o un admin la reasigna. |
 | `/tarea soltar <título>` | Quita la asignación. Solo quien la tiene asignada o un admin. |
 | `/tarea resolver <título>` | Marca la tarea como resuelta para todos. Requiere que todas sus dependencias estén resueltas. |
-| `/tarea info <título>` | Muestra estado, quién la creó, asignado, dependencias y qué tareas la necesitan. |
+| `/tarea info <título>` | Muestra proyecto, estado, quién la creó, asignado, dependencias y qué tareas la necesitan. |
 | `/tarea borrar <título>` | Borra la tarea. Solo quien la creó o un admin. Se rechaza si otras tareas dependen de ella. |
+| `/tarea mover "<título>" <proyecto>` | Pasa la tarea a otro proyecto (otra pestaña). Conserva dependencias, estado y asignado. |
+| `/tarea proyecto lista` | Lista los proyectos con sus tareas resueltas. `/tarea proyecto` solo hace lo mismo. |
+| `/tarea proyecto crear <título>` | Crea un proyecto, con su propia pestaña de logros. |
+| `/tarea proyecto renombrar "<proyecto>" <nuevo título>` | Cambia el nombre de un proyecto, incluido General. |
+| `/tarea proyecto borrar <proyecto>` | Borra un proyecto. Solo admins. Se rechaza si tiene tareas o si es General. |
 
 ### Permisos
 
 | Permiso | Por defecto | Qué permite |
 |---|---|---|
-| `taskgraph.admin` | operadores | Borrar cualquier tarea, soltar tareas de otros y reasignar con `asignar` una tarea que tiene otra persona. |
+| `taskgraph.admin` | operadores | Borrar cualquier tarea, borrar proyectos, soltar tareas de otros y reasignar con `asignar` una tarea que tiene otra persona. |
 
-Todo lo demás (crear, renombrar, describir, cambiar el ícono, agregar y quitar dependencias, asignarse tareas libres, resolver y ver info) está abierto a todos los jugadores. La consola del servidor cuenta como admin. Las tareas creadas antes de que se guardara el creador solo las puede borrar un admin.
+Todo lo demás (crear, renombrar, describir, cambiar el ícono, agregar y quitar dependencias, mover tareas, crear y renombrar proyectos, asignarse tareas libres, resolver y ver info) está abierto a todos los jugadores. La consola del servidor cuenta como admin. Las tareas creadas antes de que se guardara el creador solo las puede borrar un admin.
 
 Cada cambio se guarda en el JSON y regenera la pestaña de logros para todos los jugadores online.
 
