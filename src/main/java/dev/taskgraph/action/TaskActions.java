@@ -1,5 +1,6 @@
 package dev.taskgraph.action;
 
+import dev.taskgraph.graph.IconKeys;
 import dev.taskgraph.graph.PlayerRef;
 import dev.taskgraph.graph.Task;
 import dev.taskgraph.graph.TaskGraphException;
@@ -45,6 +46,11 @@ public final class TaskActions {
         return "No existe la tarea " + quoted(title) + ".";
     }
 
+    /** For an item id that doesn't name an item usable as an icon. */
+    public static String unknownIcon(String input) {
+        return "No hay ningún ítem " + quoted(input.strip()) + " que sirva de ícono. Usá su id, por ejemplo diamond o minecraft:oak_log.";
+    }
+
     /**
      * @param iconIsFallback whether {@code icon} replaces an empty hand, so the actor is told
      */
@@ -69,6 +75,13 @@ public final class TaskActions {
         return withTask(taskId, task -> ActionResult.success(
                 service.describe(task.id(), description),
                 "Descripción de " + quoted(task.title()) + " actualizada."));
+    }
+
+    /** @param icon namespaced key of an item already checked to work as an icon */
+    public ActionResult changeIcon(Actor actor, String taskId, String icon) {
+        return withTask(taskId, task -> ActionResult.success(
+                service.changeIcon(task.id(), icon),
+                "El ícono de " + quoted(task.title()) + " ahora es " + IconKeys.display(icon) + "."));
     }
 
     public ActionResult addDependency(Actor actor, String taskId, String dependencyId) {

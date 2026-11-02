@@ -9,6 +9,8 @@ import com.mojang.brigadier.tree.LiteralCommandNode;
 import dev.taskgraph.action.ActionResult;
 import dev.taskgraph.action.TaskActions;
 import dev.taskgraph.action.TaskTexts;
+import dev.taskgraph.advancement.TaskIcons;
+import dev.taskgraph.graph.IconKeys;
 import dev.taskgraph.graph.PlayerRef;
 import dev.taskgraph.graph.Task;
 import dev.taskgraph.graph.TaskGraph;
@@ -17,10 +19,12 @@ import dev.taskgraph.graph.Titles;
 import dev.taskgraph.service.TaskService;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
+import io.papermc.paper.command.brigadier.argument.ArgumentTypes;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
 
 import java.util.List;
 import java.util.Optional;
@@ -43,6 +47,7 @@ public final class TaskCommand {
     private static final String TITLE = "titulo";
     private static final String NEW_TITLE = "nuevoTitulo";
     private static final String TEXT = "texto";
+    private static final String ITEM = "item";
 
     private final TaskService service;
     private final TaskActions actions;
@@ -67,6 +72,10 @@ public final class TaskCommand {
                         .then(quotedTask(TASK)
                                 .then(Commands.argument(TEXT, StringArgumentType.greedyString())
                                         .executes(this::describe))))
+                .then(Commands.literal("icono")
+                        .then(quotedTask(TASK)
+                                .then(Commands.argument(ITEM, ArgumentTypes.itemStack())
+                                        .executes(this::changeIcon))))
                 .then(Commands.literal("depende")
                         .then(quotedTask(TASK)
                                 .then(lastTask(DEPENDENCY).executes(this::addDependency))))
@@ -136,6 +145,7 @@ public final class TaskCommand {
                 "crear <título> — el ícono es el ítem en tu mano",
                 "renombrar \"<título>\" <nuevo título>",
                 "desc \"<título>\" <texto>",
+                "icono \"<título>\" <ítem> — Tab sugiere los ítems",
                 "depende \"<título>\" <dependencia>",
                 "quitardep \"<título>\" <dependencia>",
                 "asignar <título>",
@@ -167,6 +177,16 @@ public final class TaskCommand {
     private int describe(CommandContext<CommandSourceStack> context) {
         String text = StringArgumentType.getString(context, TEXT);
         return withTask(context, TASK, (actor, task) -> actions.describe(actor, task.id(), text));
+    }
+
+    private int changeIcon(CommandContext<CommandSourceStack> context) {
+        // Only the item type is kept; components typed after it (e.g. diamond[...]) are ignored.
+        ItemStack item = context.getArgument(ITEM, ItemStack.class);
+        String key = item.getType().getKey().asString();
+        if (!TaskIcons.usable(item.getType())) {
+            return fail(context.getSource().getSender(), TaskActions.unknownIcon(IconKeys.display(key)));
+        }
+        return withTask(context, TASK, (actor, task) -> actions.changeIcon(actor, task.id(), key));
     }
 
     private int addDependency(CommandContext<CommandSourceStack> context) {
@@ -223,7 +243,7 @@ public final class TaskCommand {
                 + task.assigneeOptional().map(PlayerRef::name).orElse("nadie"), NamedTextColor.AQUA));
         sender.sendMessage(Component.text("Depende de: " + TaskTexts.taskList(graph, task.dependencies()), NamedTextColor.GRAY));
         sender.sendMessage(Component.text("La necesitan: " + TaskTexts.taskList(graph, graph.dependents(task.id())), NamedTextColor.GRAY));
-        sender.sendMessage(Component.text("Ícono: " + task.icon(), NamedTextColor.DARK_GRAY));
+        sender.sendMessage(Component.text("Ícono: " + IconKeys.display(task.icon()), NamedTextColor.DARK_GRAY));
         return Command.SINGLE_SUCCESS;
     }
 

@@ -68,6 +68,10 @@ public final class TaskService {
         return apply(next -> next.setDescription(id, description));
     }
 
+    public Task changeIcon(String id, String icon) {
+        return apply(next -> next.setIcon(id, icon));
+    }
+
     public Task addDependency(String id, String dependencyId) {
         return apply(next -> next.addDependency(id, dependencyId));
     }

@@ -14,6 +14,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.PriorityQueue;
 import java.util.Set;
@@ -131,6 +132,12 @@ public final class TaskGraph {
 
     public Task setDescription(String id, String description) {
         return replace(require(id).withDescription(description.strip()));
+    }
+
+    /** @param icon namespaced material key, e.g. {@code minecraft:diamond} */
+    public Task setIcon(String id, String icon) {
+        Objects.requireNonNull(icon, "icon");
+        return replace(require(id).withIcon(icon));
     }
 
     public Task addDependency(String id, String dependencyId) {

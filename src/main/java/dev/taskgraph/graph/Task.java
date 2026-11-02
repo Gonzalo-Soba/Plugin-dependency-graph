@@ -74,6 +74,10 @@ public record Task(
         return new Task(id, newTitle, description, icon, dependencies, assignee, resolved, creator);
     }
 
+    Task withIcon(String newIcon) {
+        return new Task(id, title, description, newIcon, dependencies, assignee, resolved, creator);
+    }
+
     Task withDescription(String newDescription) {
         return new Task(id, title, newDescription, icon, dependencies, assignee, resolved, creator);
     }

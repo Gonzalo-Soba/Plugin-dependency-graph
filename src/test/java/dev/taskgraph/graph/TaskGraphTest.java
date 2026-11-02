@@ -148,6 +148,29 @@ class TaskGraphTest {
     }
 
     @Nested
+    class Icon {
+
+        @Test
+        void changesOnlyTheIcon() {
+            createAll("a", "b");
+            graph.addDependency("b", "a");
+            graph.resolve("a");
+            Task before = graph.get("b").orElseThrow();
+
+            Task changed = graph.setIcon("b", "minecraft:diamond");
+
+            assertEquals(new Task(before.id(), before.title(), before.description(), "minecraft:diamond",
+                    before.dependencies(), before.assignee(), before.resolved(), before.creator()), changed);
+            assertEquals(changed, graph.get("b").orElseThrow());
+        }
+
+        @Test
+        void rejectsUnknownTask() {
+            assertRejected(Reason.NOT_FOUND, () -> graph.setIcon("missing", "minecraft:diamond"));
+        }
+    }
+
+    @Nested
     class FindByTitle {
 
         @Test

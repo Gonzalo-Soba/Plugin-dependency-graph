@@ -119,6 +119,20 @@ class TaskActionsTest {
             assertSuccess("Descripción de \"Mesa\" actualizada.", actions.describe(STEVE, task.id(), "De roble"));
             assertEquals("De roble", service.task(task.id()).orElseThrow().description());
         }
+
+        @Test
+        void changeIconReportsItWithoutTheMinecraftNamespace() {
+            Task task = create(ALEX, "Mesa");
+
+            assertSuccess("El ícono de \"Mesa\" ahora es oak_log.", actions.changeIcon(STEVE, task.id(), "minecraft:oak_log"));
+            assertEquals("minecraft:oak_log", service.task(task.id()).orElseThrow().icon());
+        }
+
+        @Test
+        void unknownIconExplainsWhatToType() {
+            assertEquals("No hay ningún ítem \"diamante\" que sirva de ícono. Usá su id, por ejemplo diamond o minecraft:oak_log.",
+                    TaskActions.unknownIcon(" diamante "));
+        }
     }
 
     @Nested
