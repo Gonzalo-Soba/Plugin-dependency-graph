@@ -459,6 +459,26 @@ public final class TaskGraph {
         return Collections.unmodifiableSet(new LinkedHashSet<>(retiredKeys));
     }
 
+    /** Keys of the tasks that exist now, in creation order. */
+    public Set<TaskKey> currentKeys() {
+        Set<TaskKey> keys = new LinkedHashSet<>();
+        for (Task task : tasks.values()) {
+            keys.add(task.key());
+        }
+        return keys;
+    }
+
+    /** Keys of the resolved tasks, in creation order. */
+    public Set<TaskKey> resolvedKeys() {
+        Set<TaskKey> keys = new LinkedHashSet<>();
+        for (Task task : tasks.values()) {
+            if (task.resolved()) {
+                keys.add(task.key());
+            }
+        }
+        return keys;
+    }
+
     public Set<String> resolvedIds() {
         Set<String> resolved = new LinkedHashSet<>();
         for (Task task : tasks.values()) {

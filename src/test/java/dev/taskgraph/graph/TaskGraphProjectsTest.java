@@ -208,6 +208,18 @@ class TaskGraphProjectsTest {
         }
 
         @Test
+        void currentAndResolvedKeysUseEachTasksProject() {
+            Project base = graph.createProject("Base");
+            Task wood = graph.create("Madera", ICON);
+            Task wall = graph.create("Muralla", ICON, null, base.id());
+            graph.resolve(wall.id());
+
+            assertEquals(List.of(new TaskKey(GENERAL, wood.id()), new TaskKey(base.id(), wall.id())),
+                    List.copyOf(graph.currentKeys()));
+            assertEquals(Set.of(new TaskKey(base.id(), wall.id())), graph.resolvedKeys());
+        }
+
+        @Test
         void removingTaskRetiresItsKeyInItsProject() {
             Project base = graph.createProject("Base");
             Task wall = graph.create("Muralla", ICON, null, base.id());

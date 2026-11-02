@@ -192,8 +192,28 @@ class TaskGraphTest {
             Task task = graph.addDependency("c", "a");
 
             assertEquals(List.of("b", "a"), task.dependencies());
-            assertEquals("b", task.visualParent().orElseThrow());
-            assertEquals(List.of("a"), task.extraRequirements());
+            assertEquals("b", task.visualParent(Set.of("a", "b", "c")).orElseThrow());
+            assertEquals(List.of("a"), task.extraRequirements(Set.of("a", "b", "c")));
+        }
+
+        @Test
+        void visualParentIsTheFirstDrawnDependency() {
+            createAll("a", "b", "c");
+            graph.addDependency("c", "b");
+            Task task = graph.addDependency("c", "a");
+
+            assertEquals("a", task.visualParent(Set.of("a", "c")).orElseThrow());
+            assertEquals(List.of("b"), task.extraRequirements(Set.of("a", "c")));
+        }
+
+        @Test
+        void withoutDrawnDependenciesEveryDependencyIsListed() {
+            createAll("a", "b", "c");
+            graph.addDependency("c", "b");
+            Task task = graph.addDependency("c", "a");
+
+            assertTrue(task.visualParent(Set.of("c")).isEmpty());
+            assertEquals(List.of("b", "a"), task.extraRequirements(Set.of("c")));
         }
 
         @Test
@@ -221,8 +241,8 @@ class TaskGraphTest {
             createAll("a");
 
             Task task = graph.get("a").orElseThrow();
-            assertTrue(task.visualParent().isEmpty());
-            assertTrue(task.extraRequirements().isEmpty());
+            assertTrue(task.visualParent(Set.of("a")).isEmpty());
+            assertTrue(task.extraRequirements(Set.of("a")).isEmpty());
         }
 
         @Test
@@ -275,7 +295,7 @@ class TaskGraphTest {
             Task task = graph.removeDependency("d", "a");
 
             assertEquals(List.of("b", "c"), task.dependencies());
-            assertEquals("b", task.visualParent().orElseThrow());
+            assertEquals("b", task.visualParent(Set.of("a", "b", "c", "d")).orElseThrow());
         }
 
         @Test
@@ -283,7 +303,7 @@ class TaskGraphTest {
             createAll("a", "b");
             graph.addDependency("b", "a");
 
-            assertTrue(graph.removeDependency("b", "a").visualParent().isEmpty());
+            assertTrue(graph.removeDependency("b", "a").visualParent(Set.of("a", "b")).isEmpty());
             assertTrue(graph.dependents("a").isEmpty());
         }
 
