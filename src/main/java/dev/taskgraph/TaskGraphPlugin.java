@@ -33,7 +33,7 @@ public final class TaskGraphPlugin extends JavaPlugin {
             return;
         }
 
-        JsonTaskStore store = new JsonTaskStore(getDataPath().resolve("tasks.json"));
+        JsonTaskStore store = new JsonTaskStore(getDataPath().resolve("tasks.json"), getLogger());
         TaskGraph graph;
         try {
             graph = store.load();
@@ -43,7 +43,7 @@ public final class TaskGraphPlugin extends JavaPlugin {
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
-        getLogger().info("Loaded " + graph.size() + " tasks");
+        getLogger().info("Loaded " + graph.size() + " tasks in " + graph.projects().size() + " projects");
 
         UltimateAdvancementAPI api = UltimateAdvancementAPI.getInstance(this);
         TaskTabPublisher publisher = new TaskTabPublisher(new TaskTabRenderer(api), new ProgressSynchronizer(getLogger()));

@@ -1,9 +1,11 @@
 package dev.taskgraph.storage;
 
 import dev.taskgraph.graph.PlayerRef;
+import dev.taskgraph.graph.Project;
 import dev.taskgraph.graph.Task;
 import dev.taskgraph.graph.TaskGraph;
 import dev.taskgraph.graph.TaskGraphException;
+import dev.taskgraph.graph.TaskKey;
 import dev.taskgraph.graph.TaskStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -52,11 +54,11 @@ class JsonTaskStoreTest {
     }
 
     @Test
-    void devServerSampleWithThirtyTasksIsValid() {
-        // Tests run from the project directory, where dev-server/ lives.
-        TaskGraph sample = new JsonTaskStore(Path.of("dev-server", "samples", "tasks-30.json")).load();
+    void devServerSampleWithThirtyTasksIsValid() throws IOException {
+        TaskGraph sample = DevServerSamples.load("tasks-30.json", directory);
 
         assertEquals(30, sample.size());
+        assertEquals(sample.tasks(), sample.tasksIn(Project.GENERAL_ID));
         assertEquals(Set.of(TaskStatus.values()),
                 sample.tasks().stream().map(task -> sample.status(task.id())).collect(Collectors.toSet()));
     }
@@ -99,8 +101,73 @@ class JsonTaskStoreTest {
         store.save(sampleGraph());
 
         String json = Files.readString(file, StandardCharsets.UTF_8);
-        assertTrue(json.contains("\"version\": 1"));
+        assertTrue(json.contains("\"version\": 2"));
         assertTrue(json.contains("ñandú, ají"));
+    }
+
+    @Test
+    void roundTripKeepsProjectsTaskProjectsAndRetiredKeys() {
+        TaskGraph original = sampleGraph();
+        Project base = original.createProject("Base");
+        original.renameProject(Project.GENERAL_ID, "Todo");
+        Task wall = original.create("Muralla", "minecraft:stone_bricks", null, base.id());
+        Task moved = original.create("Mudanza", "minecraft:chest");
+        original.moveTask(moved.id(), base.id());
+        original.remove(wall.id());
+
+        store.save(original);
+        TaskGraph loaded = store.load();
+
+        assertEquals(original.projects(), loaded.projects());
+        assertEquals(original.tasks(), loaded.tasks());
+        assertEquals(Set.of(new TaskKey(Project.GENERAL_ID, moved.id()), new TaskKey(base.id(), wall.id())),
+                loaded.retiredKeys());
+        assertEquals(original.removedIds(), loaded.removedIds());
+    }
+
+    @Test
+    void legacyFileIsMigratedToGeneralWithABackup() throws IOException {
+        String legacy = """
+                {
+                  "version": 1,
+                  "tasks": [{"id": "a", "title": "Árbol", "icon": "minecraft:oak_sapling", "resolved": true}],
+                  "removedIds": ["old"]
+                }
+                """;
+        Files.writeString(file, legacy, StandardCharsets.UTF_8);
+
+        TaskGraph loaded = store.load();
+
+        assertEquals(Project.GENERAL_ID, loaded.get("a").orElseThrow().project());
+        assertEquals(Set.of(new TaskKey(Project.GENERAL_ID, "old")), loaded.retiredKeys());
+        assertEquals(Set.of("old"), loaded.removedIds());
+        assertEquals(legacy, Files.readString(directory.resolve("tasks.v1.json.bak"), StandardCharsets.UTF_8));
+        assertTrue(Files.readString(file, StandardCharsets.UTF_8).contains("\"version\": 2"));
+        assertEquals(loaded.tasks(), store.load().tasks());
+    }
+
+    @Test
+    void currentFormatLeavesNoBackup() {
+        store.save(sampleGraph());
+
+        store.load();
+
+        assertFalse(Files.exists(store.legacyBackup()));
+    }
+
+    @Test
+    void legacyBackupSitsNextToTheFile() {
+        assertEquals(directory.resolve("tasks.v1.json.bak"), store.legacyBackup());
+    }
+
+    @Test
+    void taskInUnknownProjectIsRejected() throws IOException {
+        Files.writeString(file, """
+                {"version": 2, "tasks": [{"id": "a", "title": "A", "icon": "minecraft:stone", "project": "ghost"}]}
+                """);
+
+        TaskStoreException exception = assertThrows(TaskStoreException.class, store::load);
+        assertInstanceOf(TaskGraphException.class, exception.getCause());
     }
 
     @Test
@@ -133,8 +200,8 @@ class JsonTaskStoreTest {
     }
 
     @Test
-    void graphRuleViolationIsRejected() throws IOException {
-        Files.writeString(file, """
+    void graphRuleViolationIsRejectedWithoutMigrating() throws IOException {
+        String broken = """
                 {
                   "version": 1,
                   "tasks": [
@@ -142,10 +209,13 @@ class JsonTaskStoreTest {
                     {"id": "b", "title": "B", "icon": "minecraft:stone", "dependencies": ["a"]}
                   ]
                 }
-                """);
+                """;
+        Files.writeString(file, broken);
 
         TaskStoreException exception = assertThrows(TaskStoreException.class, store::load);
         assertInstanceOf(TaskGraphException.class, exception.getCause());
+        assertEquals(broken, Files.readString(file));
+        assertFalse(Files.exists(store.legacyBackup()));
     }
 
     @Test

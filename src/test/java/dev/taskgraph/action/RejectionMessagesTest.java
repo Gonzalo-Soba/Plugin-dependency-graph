@@ -1,5 +1,6 @@
 package dev.taskgraph.action;
 
+import dev.taskgraph.graph.Project;
 import dev.taskgraph.graph.Task;
 import dev.taskgraph.graph.TaskGraph;
 import dev.taskgraph.graph.TaskGraphException;
@@ -27,6 +28,31 @@ class RejectionMessagesTest {
         String message = RejectionMessages.of(new TaskGraphException(reason, "a", List.of("b")), Function.identity());
 
         assertFalse(message.isBlank());
+    }
+
+    @ParameterizedTest
+    @EnumSource(Reason.class)
+    void everyReasonHasAMessageWithProjectTitles(Reason reason) {
+        String message = RejectionMessages.of(new TaskGraphException(reason, "a", List.of("b")),
+                Function.identity(), Function.identity());
+
+        assertFalse(message.isBlank());
+    }
+
+    @Test
+    void projectRejectionsShowProjectAndTaskTitles() {
+        TaskGraph graph = new TaskGraph();
+        Project base = graph.createProject("Base del norte");
+        Task wall = graph.create("Muralla", "minecraft:stone_bricks", null, base.id());
+        Function<String, String> projectTitles = id -> graph.project(id).map(Project::title).orElse(id);
+
+        TaskGraphException notEmpty = assertThrows(TaskGraphException.class, () -> graph.removeProject(base.id()));
+        TaskGraphException alreadyThere = assertThrows(TaskGraphException.class, () -> graph.moveTask(wall.id(), base.id()));
+
+        assertEquals("No se puede borrar el proyecto \"Base del norte\": todavía tiene tareas (\"Muralla\"). Movelas o borralas primero.",
+                RejectionMessages.of(notEmpty, titlesOf(graph), projectTitles));
+        assertEquals("\"Muralla\" ya está en el proyecto \"Base del norte\".",
+                RejectionMessages.of(alreadyThere, titlesOf(graph), projectTitles));
     }
 
     @Test

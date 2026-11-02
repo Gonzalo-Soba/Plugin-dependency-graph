@@ -15,6 +15,8 @@ import java.util.Set;
  * @param assignee     assigned player, or {@code null} when nobody is assigned
  * @param creator      player who created the task, or {@code null} for the console and tasks created before
  *                     creators were recorded
+ * @param project      id of the project (advancement tab) the task belongs to; {@code null} means General,
+ *                     which is how tasks stored before projects existed are read
  */
 public record Task(
         String id,
@@ -24,7 +26,8 @@ public record Task(
         List<String> dependencies,
         PlayerRef assignee,
         boolean resolved,
-        PlayerRef creator
+        PlayerRef creator,
+        String project
 ) {
 
     public Task {
@@ -33,16 +36,23 @@ public record Task(
         Objects.requireNonNull(icon, "icon");
         description = description == null ? "" : description;
         dependencies = dependencies == null ? List.of() : List.copyOf(dependencies);
+        project = project == null ? Project.GENERAL_ID : project;
     }
 
-    /** Task without a recorded creator. */
+    /** Task in General. */
+    public Task(String id, String title, String description, String icon, List<String> dependencies,
+                PlayerRef assignee, boolean resolved, PlayerRef creator) {
+        this(id, title, description, icon, dependencies, assignee, resolved, creator, Project.GENERAL_ID);
+    }
+
+    /** Task in General without a recorded creator. */
     public Task(String id, String title, String description, String icon, List<String> dependencies,
                 PlayerRef assignee, boolean resolved) {
         this(id, title, description, icon, dependencies, assignee, resolved, null);
     }
 
-    public static Task create(String id, String title, String icon, PlayerRef creator) {
-        return new Task(id, title, "", icon, List.of(), null, false, creator);
+    public static Task create(String id, String title, String icon, PlayerRef creator, String project) {
+        return new Task(id, title, "", icon, List.of(), null, false, creator, project);
     }
 
     public Optional<PlayerRef> creatorOptional() {
@@ -51,6 +61,11 @@ public record Task(
 
     public Optional<PlayerRef> assigneeOptional() {
         return Optional.ofNullable(assignee);
+    }
+
+    /** Where this task's advancement progress is stored: its project and its id. */
+    public TaskKey key() {
+        return new TaskKey(project, id);
     }
 
     public Optional<String> visualParent() {
@@ -71,26 +86,30 @@ public record Task(
     }
 
     Task withTitle(String newTitle) {
-        return new Task(id, newTitle, description, icon, dependencies, assignee, resolved, creator);
+        return new Task(id, newTitle, description, icon, dependencies, assignee, resolved, creator, project);
     }
 
     Task withIcon(String newIcon) {
-        return new Task(id, title, description, newIcon, dependencies, assignee, resolved, creator);
+        return new Task(id, title, description, newIcon, dependencies, assignee, resolved, creator, project);
     }
 
     Task withDescription(String newDescription) {
-        return new Task(id, title, newDescription, icon, dependencies, assignee, resolved, creator);
+        return new Task(id, title, newDescription, icon, dependencies, assignee, resolved, creator, project);
     }
 
     Task withDependencies(List<String> newDependencies) {
-        return new Task(id, title, description, icon, newDependencies, assignee, resolved, creator);
+        return new Task(id, title, description, icon, newDependencies, assignee, resolved, creator, project);
     }
 
     Task withAssignee(PlayerRef newAssignee) {
-        return new Task(id, title, description, icon, dependencies, newAssignee, resolved, creator);
+        return new Task(id, title, description, icon, dependencies, newAssignee, resolved, creator, project);
     }
 
     Task withResolved(boolean newResolved) {
-        return new Task(id, title, description, icon, dependencies, assignee, newResolved, creator);
+        return new Task(id, title, description, icon, dependencies, assignee, newResolved, creator, project);
+    }
+
+    Task withProject(String newProject) {
+        return new Task(id, title, description, icon, dependencies, assignee, resolved, creator, newProject);
     }
 }

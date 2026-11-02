@@ -2,7 +2,7 @@
 
 Plugin de Paper para organizar las tareas comunales de un servidor de Minecraft. Las tareas forman un grafo de dependencias que se muestra en la pantalla de logros (advancements) vanilla, así que los jugadores no necesitan mods en el cliente.
 
-> Versión actual: **0.3.0**.
+> Última versión: **0.3.0**. En desarrollo: 0.4.0, con varias pestañas (proyectos), ocultar ramas terminadas y botón "+" para crear tareas.
 
 ## Cómo se ve
 
@@ -80,6 +80,7 @@ Jugadores: **A** y **B**.
   - Con `deop A`, A ya no puede reasignar "Mesa" mientras la tenga B. `/tarea soltar Mesa` de B la libera.
 - [ ] **Títulos sin distinguir mayúsculas ni tildes.** `/tarea info jardin` encuentra "Jardín", y `/tarea crear JARDIN` se rechaza porque ya existe. `/tarea renombrar Jardín Huerta` cambia el nombre en la pestaña y conserva el estado.
 - [ ] **Interfaz: lista.** `/tareas` abre "Tareas del servidor". Las tareas aparecen primero las disponibles (▶, verde), después las bloqueadas (✘, gris) y al final las resueltas (✔, verde oscuro); dentro de cada grupo, por orden alfabético. El tooltip de cada botón muestra estado y asignado.
+- [ ] **Migración del formato 1.** Con el servidor apagado, copiar `dev-server/samples/tasks-30.json` (formato 1) sobre `run/plugins/TaskGraph/tasks.json` y arrancar. El log muestra `Migrated tasks.json to format version 2` y `Loaded 30 tasks in 1 projects`. Aparece `run/plugins/TaskGraph/tasks.v1.json.bak` igual al ejemplo, y `tasks.json` dice `"version": 2` y tiene `"project": "general"` en cada tarea. La pestaña y `/tareas` se ven igual que antes. Al reiniciar otra vez no hay una nueva migración.
 - [ ] **Interfaz: lista con 30 tareas.** Con el servidor apagado, copiar `dev-server/samples/tasks-30.json` sobre `run/plugins/TaskGraph/tasks.json` y arrancar. `/tareas` muestra las 30, se puede desplazar hasta el final y el orden por grupos se mantiene. La pestaña de logros también se ve legible.
 - [ ] **Interfaz: crear y editar.** "Nueva tarea" con un ítem en la mano crea la tarea con ese ícono y abre su ficha. Un título repetido muestra el error y conserva lo escrito. "Editar" cambia título y descripción en un solo paso.
 - [ ] **Íconos.** `/tarea icono Madera ` y Tab sugiere ítems; `/tarea icono Madera oak_log` cambia el ícono en la pestaña y en la ficha. `/tarea icono Madera air` se rechaza. En "Nueva tarea", el ícono `DIAMOND` crea la tarea con un diamante aunque tengas otra cosa en la mano; `diamante` muestra el error y conserva lo escrito; vacío usa el ítem en la mano. "Cambiar ícono" en la ficha acepta `minecraft:oak_log`, y vacío con la mano vacía muestra el error.
@@ -96,6 +97,13 @@ Si algo falla, guardá `run/logs/latest.log`.
 Las tareas se guardan en `plugins/TaskGraph/tasks.json`. Ese archivo es la fuente de verdad: el progreso que ve cada jugador en la pantalla de logros se sincroniza contra él.
 
 Si el archivo está dañado o tiene datos inválidos (por ejemplo, un ciclo de dependencias), el plugin se desactiva al arrancar y deja el archivo intacto. Revisar el log del servidor, corregir el archivo y reiniciar.
+
+**Formato 2 (desde la 0.4.0).** El archivo guarda también los proyectos y en qué proyecto está cada tarea. Un `tasks.json` de una versión anterior (formato 1) se convierte solo al arrancar:
+- todas sus tareas pasan al proyecto General;
+- antes de convertirlo se guarda una copia del archivo original como `plugins/TaskGraph/tasks.v1.json.bak`;
+- el log muestra `Migrated tasks.json to format version 2`.
+
+Si el archivo viejo tiene errores, no se convierte ni se toca.
 
 ## Interfaz
 

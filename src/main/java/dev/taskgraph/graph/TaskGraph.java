@@ -19,19 +19,31 @@ import java.util.Optional;
 import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * Directed acyclic graph of tasks. An edge {@code a -> b} means "a depends on b".
  * Every mutating method validates first and leaves the graph untouched when it throws.
  * Iteration order is creation order, which keeps topological order and layout stable.
+ * <p>
+ * Every task belongs to a project. General always exists and comes first; dependencies may cross projects.
  */
 public final class TaskGraph {
 
     private static final Pattern ID_PATTERN = Pattern.compile("[a-z0-9_]{1,32}");
+    private static final String PROJECT_FALLBACK_ID = "proyecto";
 
+    private final Map<String, Project> projects = new LinkedHashMap<>();
     private final Map<String, Task> tasks = new LinkedHashMap<>();
-    // Ids of deleted tasks. Players who were offline at deletion may still hold progress for them.
+    // Ids of deleted tasks, never handed out again so a new task can't inherit their progress.
     private final Set<String> removedIds = new LinkedHashSet<>();
+    // Keys that no task uses anymore (deleted or moved to another project). Players who were offline
+    // when it happened may still hold progress under them.
+    private final Set<TaskKey> retiredKeys = new LinkedHashSet<>();
+
+    public TaskGraph() {
+        projects.put(Project.GENERAL_ID, Project.general());
+    }
 
     /**
      * Rebuilds a graph from stored tasks, rejecting data that breaks any graph rule.
@@ -41,10 +53,38 @@ public final class TaskGraph {
     }
 
     /**
-     * Rebuilds a graph from stored tasks and removed ids. Removed ids that belong to an existing task are dropped.
+     * Rebuilds a graph stored before projects existed: every task is in General, and each removed id is
+     * also a retired General key. Removed ids that belong to an existing task are dropped.
      */
     public static TaskGraph of(Collection<Task> stored, Collection<String> storedRemovedIds) {
+        List<TaskKey> retired = storedRemovedIds.stream().map(id -> new TaskKey(Project.GENERAL_ID, id)).toList();
+        return of(List.of(), stored, storedRemovedIds, retired);
+    }
+
+    /**
+     * Rebuilds a graph from stored projects, tasks, removed ids and retired keys, rejecting data that breaks
+     * any graph rule. General is added when missing and always goes first. Removed ids and retired keys
+     * still used by an existing task are dropped.
+     */
+    public static TaskGraph of(Collection<Project> storedProjects, Collection<Task> stored,
+                               Collection<String> storedRemovedIds, Collection<TaskKey> storedRetiredKeys) {
         TaskGraph graph = new TaskGraph();
+        List<Project> projects = new ArrayList<>();
+        projects.add(storedProjects.stream().filter(Project::isGeneral).findFirst().orElseGet(Project::general));
+        storedProjects.stream().filter(project -> !project.isGeneral()).forEach(projects::add);
+        graph.projects.clear();
+        Set<String> projectTitleKeys = new HashSet<>();
+        for (Project project : projects) {
+            validateId(project.id());
+            validateTitle(project.id(), project.title());
+            if (graph.projects.putIfAbsent(project.id(), project) != null) {
+                throw new TaskGraphException(Reason.DUPLICATE_ID, project.id());
+            }
+            if (!projectTitleKeys.add(Titles.key(project.title()))) {
+                throw new TaskGraphException(Reason.DUPLICATE_PROJECT_TITLE, project.id());
+            }
+        }
+
         Set<String> titleKeys = new HashSet<>();
         for (Task task : stored) {
             validateId(task.id());
@@ -57,6 +97,7 @@ public final class TaskGraph {
             if (graph.tasks.putIfAbsent(task.id(), unique) != null) {
                 throw new TaskGraphException(Reason.DUPLICATE_ID, task.id());
             }
+            graph.requireProject(task.project());
         }
         for (Task task : graph.tasks.values()) {
             Set<String> seen = new HashSet<>();
@@ -82,14 +123,22 @@ public final class TaskGraph {
                 graph.removedIds.add(removedId);
             }
         }
+        Set<TaskKey> currentKeys = graph.tasks.values().stream().map(Task::key).collect(Collectors.toSet());
+        for (TaskKey retired : storedRetiredKeys) {
+            if (!currentKeys.contains(retired)) {
+                graph.retiredKeys.add(retired);
+            }
+        }
         return graph;
     }
 
     /** Independent copy, so a change can be tried and discarded without touching this graph. */
     public TaskGraph copy() {
         TaskGraph copy = new TaskGraph();
+        copy.projects.putAll(projects);
         copy.tasks.putAll(tasks);
         copy.removedIds.addAll(removedIds);
+        copy.retiredKeys.addAll(retiredKeys);
         return copy;
     }
 
@@ -102,16 +151,44 @@ public final class TaskGraph {
     }
 
     /**
+     * Creates a task in General.
+     *
      * @param creator player who creates the task, or {@code null} for the console
      */
     public Task create(String title, String icon, PlayerRef creator) {
+        return create(title, icon, creator, Project.GENERAL_ID);
+    }
+
+    /**
+     * @param creator   player who creates the task, or {@code null} for the console
+     * @param projectId project the task goes in
+     */
+    public Task create(String title, String icon, PlayerRef creator, String projectId) {
+        requireProject(projectId);
         validateTitle(null, title);
         String cleanTitle = Titles.clean(title);
         requireUniqueTitle(cleanTitle, null);
         String id = Titles.generateId(cleanTitle, candidate -> tasks.containsKey(candidate) || removedIds.contains(candidate));
-        Task task = Task.create(id, cleanTitle, icon, creator);
+        Task task = Task.create(id, cleanTitle, icon, creator, projectId);
         tasks.put(id, task);
         return task;
+    }
+
+    /**
+     * Moves a task to another project, keeping its dependencies (which may now cross projects). Its old
+     * key is retired, since offline players may still hold progress under it.
+     */
+    public Task moveTask(String id, String projectId) {
+        Task task = require(id);
+        requireProject(projectId);
+        if (task.project().equals(projectId)) {
+            throw new TaskGraphException(Reason.ALREADY_IN_PROJECT, id, List.of(projectId));
+        }
+        retiredKeys.add(task.key());
+        Task moved = replace(task.withProject(projectId));
+        // Moving back to a project it was in before reuses that key.
+        retiredKeys.remove(moved.key());
+        return moved;
     }
 
     public Task rename(String id, String newTitle) {
@@ -222,7 +299,67 @@ public final class TaskGraph {
             throw new TaskGraphException(Reason.HAS_DEPENDENTS, id, dependents);
         }
         removedIds.add(id);
-        return tasks.remove(id);
+        Task removed = tasks.remove(id);
+        retiredKeys.add(removed.key());
+        return removed;
+    }
+
+    public Project createProject(String title) {
+        validateTitle(null, title);
+        String cleanTitle = Titles.clean(title);
+        requireUniqueProjectTitle(cleanTitle, null);
+        String id = Titles.generateId(cleanTitle, PROJECT_FALLBACK_ID, projects::containsKey);
+        Project project = new Project(id, cleanTitle, false);
+        projects.put(id, project);
+        return project;
+    }
+
+    public Project renameProject(String id, String newTitle) {
+        Project project = requireProject(id);
+        validateTitle(id, newTitle);
+        String cleanTitle = Titles.clean(newTitle);
+        requireUniqueProjectTitle(cleanTitle, id);
+        Project renamed = project.withTitle(cleanTitle);
+        projects.put(id, renamed);
+        return renamed;
+    }
+
+    /** Removes an empty project. General can't be removed. */
+    public Project removeProject(String id) {
+        Project project = requireProject(id);
+        if (project.isGeneral()) {
+            throw new TaskGraphException(Reason.GENERAL_PROJECT, id);
+        }
+        List<String> inside = tasksIn(id).stream().map(Task::id).toList();
+        if (!inside.isEmpty()) {
+            throw new TaskGraphException(Reason.PROJECT_NOT_EMPTY, id, inside);
+        }
+        return projects.remove(id);
+    }
+
+    /** Projects in creation order, General first. */
+    public List<Project> projects() {
+        return List.copyOf(projects.values());
+    }
+
+    public Optional<Project> project(String id) {
+        return Optional.ofNullable(projects.get(id));
+    }
+
+    /** Finds a project by title, ignoring case, accents and spacing. */
+    public Optional<Project> findProjectByTitle(String title) {
+        String key = Titles.key(title);
+        return projects.values().stream()
+                .filter(project -> Titles.key(project.title()).equals(key))
+                .findFirst();
+    }
+
+    /** Tasks of a project, in creation order. */
+    public List<Task> tasksIn(String projectId) {
+        requireProject(projectId);
+        return tasks.values().stream()
+                .filter(task -> task.project().equals(projectId))
+                .toList();
     }
 
     public Optional<Task> get(String id) {
@@ -317,6 +454,11 @@ public final class TaskGraph {
         return Collections.unmodifiableSet(new LinkedHashSet<>(removedIds));
     }
 
+    /** Keys no task uses anymore, from deleted tasks and tasks moved to another project, oldest first. */
+    public Set<TaskKey> retiredKeys() {
+        return Collections.unmodifiableSet(new LinkedHashSet<>(retiredKeys));
+    }
+
     public Set<String> resolvedIds() {
         Set<String> resolved = new LinkedHashSet<>();
         for (Task task : tasks.values()) {
@@ -403,6 +545,23 @@ public final class TaskGraph {
             throw new TaskGraphException(Reason.NOT_FOUND, id);
         }
         return task;
+    }
+
+    private Project requireProject(String id) {
+        Project project = projects.get(id);
+        if (project == null) {
+            throw new TaskGraphException(Reason.PROJECT_NOT_FOUND, id);
+        }
+        return project;
+    }
+
+    /** Rejects a title already used by another project; {@code ownId} may keep its own title. */
+    private void requireUniqueProjectTitle(String title, String ownId) {
+        findProjectByTitle(title)
+                .filter(existing -> !existing.id().equals(ownId))
+                .ifPresent(existing -> {
+                    throw new TaskGraphException(Reason.DUPLICATE_PROJECT_TITLE, existing.id());
+                });
     }
 
     private Task replace(Task task) {
