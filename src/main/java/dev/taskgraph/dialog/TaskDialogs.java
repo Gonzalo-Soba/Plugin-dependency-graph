@@ -75,11 +75,13 @@ public final class TaskDialogs {
     private final Plugin plugin;
     private final TaskService service;
     private final TaskActions actions;
+    private final IconPicker iconPicker;
 
-    public TaskDialogs(Plugin plugin, TaskService service, TaskActions actions) {
+    public TaskDialogs(Plugin plugin, TaskService service, TaskActions actions, IconPicker iconPicker) {
         this.plugin = plugin;
         this.service = service;
         this.actions = actions;
+        this.iconPicker = iconPicker;
     }
 
     /** Entry point of the interface: the project list. */
@@ -312,7 +314,9 @@ public final class TaskDialogs {
             return;
         }
         List<DialogBody> body = new ArrayList<>(feedback(feedback));
-        body.add(text(Component.text("Si dejás el ícono vacío, se usa el ítem que tengas en la mano al tocar «Crear».", NamedTextColor.GRAY)));
+        chosenIcon(icon).ifPresent(body::add);
+        body.add(text(Component.text("«Elegir ícono» abre un menú con todos los ítems. Si dejás el ícono vacío, se usa el ítem que tengas en la mano al tocar «Crear».",
+                NamedTextColor.GRAY)));
 
         ActionButton create = actionButton("Crear", NamedTextColor.GREEN, onSubmit((viewer, response) -> {
             String newTitle = textOf(response, TITLE_INPUT);
@@ -337,11 +341,20 @@ public final class TaskDialogs {
             }
             openDetail(viewer, created.task().id(), result);
         }));
+        // Submits the form so what was typed comes back when the picker returns.
+        ActionButton pick = actionButton("Elegir ícono", NamedTextColor.AQUA, onSubmit((viewer, response) -> {
+            String typedTitle = textOf(response, TITLE_INPUT);
+            String typedDescription = textOf(response, DESCRIPTION_INPUT);
+            String typedIcon = textOf(response, ICON_INPUT);
+            iconPicker.open(viewer,
+                    key -> openCreate(viewer, projectId, null, typedTitle, typedDescription, IconKeys.display(key)),
+                    () -> openCreate(viewer, projectId, null, typedTitle, typedDescription, typedIcon));
+        }));
         ActionButton cancel = actionButton("Cancelar", NamedTextColor.WHITE, onClick(viewer -> openTasks(viewer, projectId, null)));
 
         List<DialogInput> inputs = new ArrayList<>(formInputs(title, description));
         inputs.add(iconInput(Component.text("Ícono (opcional)"), icon));
-        show(player, Component.text("Nueva tarea en " + project.get().title()), body, inputs, DialogType.confirmation(create, cancel));
+        show(player, Component.text("Nueva tarea en " + project.get().title()), body, inputs, formWithPicker(create, pick, cancel));
     }
 
     private void openEdit(Player player, String taskId, ActionResult feedback, String title, String description) {
@@ -420,7 +433,11 @@ public final class TaskDialogs {
         body.add(DialogBody.item(TaskIcons.of(task.get().icon()))
                 .description(DialogBody.plainMessage(Component.text("Ícono actual: " + IconKeys.display(task.get().icon()), NamedTextColor.GRAY)))
                 .build());
-        body.add(text(Component.text(ICON_HINT + " Si lo dejás vacío, se usa el ítem que tengas en la mano.", NamedTextColor.GRAY)));
+        if (!typed.equals(IconKeys.display(task.get().icon()))) {
+            chosenIcon(typed).ifPresent(body::add);
+        }
+        body.add(text(Component.text("«Elegir ícono» abre un menú con todos los ítems. " + ICON_HINT
+                + " Si lo dejás vacío, se usa el ítem que tengas en la mano.", NamedTextColor.GRAY)));
 
         ActionButton save = actionButton("Guardar", NamedTextColor.GREEN, onSubmit((viewer, response) -> {
             String typedIcon = textOf(response, ICON_INPUT);
@@ -435,10 +452,16 @@ public final class TaskDialogs {
             }
             openDetail(viewer, taskId, actions.changeIcon(Senders.actor(viewer), taskId, chosenIcon.get()));
         }));
+        ActionButton pick = actionButton("Elegir ícono", NamedTextColor.AQUA, onSubmit((viewer, response) -> {
+            String typedIcon = textOf(response, ICON_INPUT);
+            iconPicker.open(viewer,
+                    key -> openIcon(viewer, taskId, null, IconKeys.display(key)),
+                    () -> openIcon(viewer, taskId, null, typedIcon));
+        }));
         ActionButton cancel = actionButton("Cancelar", NamedTextColor.WHITE, onClick(viewer -> openDetail(viewer, taskId, null)));
 
         show(player, Component.text("Ícono de " + task.get().title()), body,
-                List.of(iconInput(Component.text("Ítem"), typed)), DialogType.confirmation(save, cancel));
+                List.of(iconInput(Component.text("Ítem"), typed)), formWithPicker(save, pick, cancel));
     }
 
     // ---- Dependencies ----
@@ -558,6 +581,19 @@ public final class TaskDialogs {
     }
 
     // ---- Building blocks ----
+
+    /** Confirm and «Elegir ícono» side by side; cancel is the exit button, also used by Escape. */
+    private static DialogType formWithPicker(ActionButton confirm, ActionButton pick, ActionButton cancel) {
+        return DialogType.multiAction(List.of(confirm, pick)).columns(2).exitAction(cancel).build();
+    }
+
+    /** Preview of the icon typed or picked so far, when it names a usable item. */
+    private static Optional<DialogBody> chosenIcon(String typed) {
+        return (typed == null || typed.isBlank() ? Optional.<String>empty() : TaskIcons.parse(typed))
+                .map(key -> DialogBody.item(TaskIcons.of(key))
+                        .description(DialogBody.plainMessage(Component.text("Ícono elegido: " + IconKeys.display(key), NamedTextColor.GRAY)))
+                        .build());
+    }
 
     private static void show(Player player, Component title, List<? extends DialogBody> body,
                              List<? extends DialogInput> inputs, DialogType type) {
