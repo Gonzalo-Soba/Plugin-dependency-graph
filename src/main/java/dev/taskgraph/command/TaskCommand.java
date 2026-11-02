@@ -12,6 +12,7 @@ import dev.taskgraph.action.TaskTexts;
 import dev.taskgraph.advancement.TaskIcons;
 import dev.taskgraph.graph.IconKeys;
 import dev.taskgraph.graph.PlayerRef;
+import dev.taskgraph.graph.Project;
 import dev.taskgraph.graph.Task;
 import dev.taskgraph.graph.TaskGraph;
 import dev.taskgraph.graph.TaskPermissions.Actor;
@@ -32,7 +33,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 /**
- * {@code /tarea} and its subcommands. Players refer to tasks by title; internal ids never show up here.
+ * {@code /tarea} and its subcommands. Players refer to tasks and projects by title; internal ids never show up here.
  * The last argument of every subcommand is greedy, so it needs no quotes. Earlier arguments use
  * Brigadier quoted strings, which suggestions quote automatically when the title has spaces or accents.
  * This class only parses arguments and styles results: rules, permissions and messages live in {@link TaskActions}.
@@ -48,6 +49,7 @@ public final class TaskCommand {
     private static final String NEW_TITLE = "nuevoTitulo";
     private static final String TEXT = "texto";
     private static final String ITEM = "item";
+    private static final String PROJECT = "proyecto";
 
     private final TaskService service;
     private final TaskActions actions;
@@ -94,6 +96,22 @@ public final class TaskCommand {
                         .then(lastTask(TASK).executes(this::info)))
                 .then(Commands.literal("borrar")
                         .then(lastTask(TASK).executes(this::remove)))
+                .then(Commands.literal("mover")
+                        .then(quotedTask(TASK)
+                                .then(lastProject(PROJECT).executes(this::move))))
+                .then(Commands.literal("proyecto")
+                        .executes(this::listProjects)
+                        .then(Commands.literal("lista").executes(this::listProjects))
+                        .then(Commands.literal("crear")
+                                .then(Commands.argument(TITLE, StringArgumentType.greedyString())
+                                        .executes(this::createProject)))
+                        .then(Commands.literal("renombrar")
+                                .then(Commands.argument(PROJECT, StringArgumentType.string())
+                                        .suggests(projectTitles(StringArgumentType::escapeIfRequired))
+                                        .then(Commands.argument(NEW_TITLE, StringArgumentType.greedyString())
+                                                .executes(this::renameProject))))
+                        .then(Commands.literal("borrar")
+                                .then(lastProject(PROJECT).executes(this::removeProject))))
                 .build();
     }
 
@@ -105,6 +123,23 @@ public final class TaskCommand {
     /** Task title as the last argument: takes the rest of the line, no quotes needed. */
     private RequiredArgumentBuilder<CommandSourceStack, String> lastTask(String name) {
         return Commands.argument(name, StringArgumentType.greedyString()).suggests(taskTitles(Function.identity()));
+    }
+
+    /** Project title as the last argument: takes the rest of the line, no quotes needed. */
+    private RequiredArgumentBuilder<CommandSourceStack, String> lastProject(String name) {
+        return Commands.argument(name, StringArgumentType.greedyString()).suggests(projectTitles(Function.identity()));
+    }
+
+    private SuggestionProvider<CommandSourceStack> projectTitles(Function<String, String> format) {
+        return (context, builder) -> {
+            String typed = Titles.key(unquote(builder.getRemaining()));
+            for (Project project : service.projects()) {
+                if (Titles.key(project.title()).startsWith(typed)) {
+                    builder.suggest(format.apply(project.title()));
+                }
+            }
+            return builder.buildFuture();
+        };
     }
 
     private SuggestionProvider<CommandSourceStack> taskTitles(Function<String, String> format) {
@@ -142,7 +177,7 @@ public final class TaskCommand {
         CommandSender sender = context.getSource().getSender();
         sender.sendMessage(Component.text("Comandos de tareas:", NamedTextColor.GOLD));
         for (String usage : List.of(
-                "crear <título> — el ícono es el ítem en tu mano",
+                "crear <título> — el ícono es el ítem en tu mano; se crea en General",
                 "renombrar \"<título>\" <nuevo título>",
                 "desc \"<título>\" <texto>",
                 "icono \"<título>\" <ítem> — Tab sugiere los ítems",
@@ -152,7 +187,12 @@ public final class TaskCommand {
                 "soltar <título> — deja de estar asignada a vos",
                 "resolver <título>",
                 "info <título>",
-                "borrar <título>")) {
+                "borrar <título>",
+                "mover \"<título>\" <proyecto>",
+                "proyecto lista",
+                "proyecto crear <título>",
+                "proyecto renombrar \"<proyecto>\" <nuevo título>",
+                "proyecto borrar <proyecto> — solo admins, y solo si está vacío")) {
             sender.sendMessage(Component.text("/" + NAME + " " + usage, NamedTextColor.GRAY));
         }
         sender.sendMessage(Component.text("Usá comillas cuando el título tenga espacios o tildes y no sea lo último del comando. Tab las pone por vos.",
@@ -235,6 +275,8 @@ public final class TaskCommand {
         if (!task.description().isEmpty()) {
             sender.sendMessage(Component.text(task.description(), NamedTextColor.GRAY));
         }
+        sender.sendMessage(Component.text("Proyecto: "
+                + graph.project(task.project()).map(Project::title).orElse(task.project()), NamedTextColor.GRAY));
         sender.sendMessage(Component.text("Estado: " + (task.resolved() ? "resuelta" : "pendiente"),
                 task.resolved() ? NamedTextColor.GREEN : NamedTextColor.YELLOW));
         sender.sendMessage(Component.text("Creada por: "
@@ -249,6 +291,61 @@ public final class TaskCommand {
 
     private int remove(CommandContext<CommandSourceStack> context) {
         return withTask(context, TASK, (actor, task) -> actions.remove(actor, task.id()));
+    }
+
+    private int move(CommandContext<CommandSourceStack> context) {
+        return withTask(context, TASK, (actor, task) -> {
+            Optional<Project> project = lookupProject(context);
+            return project.isEmpty()
+                    ? unknownProject(context)
+                    : actions.moveTask(actor, task.id(), project.get().id());
+        });
+    }
+
+    private int listProjects(CommandContext<CommandSourceStack> context) {
+        CommandSender sender = context.getSource().getSender();
+        TaskGraph graph = service.snapshot();
+        sender.sendMessage(Component.text("Proyectos:", NamedTextColor.GOLD));
+        for (Project project : graph.projects()) {
+            List<Task> tasks = graph.tasksIn(project.id());
+            long resolved = tasks.stream().filter(Task::resolved).count();
+            sender.sendMessage(Component.text(project.title() + " — " + resolved + " de " + tasks.size() + " resueltas",
+                    NamedTextColor.GRAY));
+        }
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private int createProject(CommandContext<CommandSourceStack> context) {
+        CommandSender sender = context.getSource().getSender();
+        String title = unquote(StringArgumentType.getString(context, TITLE));
+        return report(sender, actions.createProject(Senders.actor(sender), title));
+    }
+
+    private int renameProject(CommandContext<CommandSourceStack> context) {
+        String newTitle = unquote(StringArgumentType.getString(context, NEW_TITLE));
+        return withProject(context, (actor, project) -> actions.renameProject(actor, project.id(), newTitle));
+    }
+
+    private int removeProject(CommandContext<CommandSourceStack> context) {
+        return withProject(context, (actor, project) -> actions.removeProject(actor, project.id()));
+    }
+
+    private int withProject(CommandContext<CommandSourceStack> context, BiFunction<Actor, Project, ActionResult> action) {
+        CommandSender sender = context.getSource().getSender();
+        Optional<Project> project = lookupProject(context);
+        if (project.isEmpty()) {
+            return report(sender, unknownProject(context));
+        }
+        return report(sender, action.apply(Senders.actor(sender), project.get()));
+    }
+
+    private Optional<Project> lookupProject(CommandContext<CommandSourceStack> context) {
+        return actions.findProjectByTitle(unquote(StringArgumentType.getString(context, PROJECT)));
+    }
+
+    private static ActionResult unknownProject(CommandContext<CommandSourceStack> context) {
+        String title = unquote(StringArgumentType.getString(context, PROJECT));
+        return new ActionResult(false, null, TaskActions.unknownProject(title), List.of());
     }
 
     /** Looks up the task named by the argument, runs the action and reports its result to the sender. */
