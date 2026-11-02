@@ -148,6 +148,29 @@ class TaskGraphTest {
     }
 
     @Nested
+    class Icon {
+
+        @Test
+        void changesOnlyTheIcon() {
+            createAll("a", "b");
+            graph.addDependency("b", "a");
+            graph.resolve("a");
+            Task before = graph.get("b").orElseThrow();
+
+            Task changed = graph.setIcon("b", "minecraft:diamond");
+
+            assertEquals(new Task(before.id(), before.title(), before.description(), "minecraft:diamond",
+                    before.dependencies(), before.assignee(), before.resolved(), before.creator()), changed);
+            assertEquals(changed, graph.get("b").orElseThrow());
+        }
+
+        @Test
+        void rejectsUnknownTask() {
+            assertRejected(Reason.NOT_FOUND, () -> graph.setIcon("missing", "minecraft:diamond"));
+        }
+    }
+
+    @Nested
     class FindByTitle {
 
         @Test
@@ -171,6 +194,26 @@ class TaskGraphTest {
             assertEquals(List.of("b", "a"), task.dependencies());
             assertEquals("b", task.visualParent().orElseThrow());
             assertEquals(List.of("a"), task.extraRequirements());
+        }
+
+        @Test
+        void everyDrawnDependencyGetsALineInDependencyOrder() {
+            createAll("a", "b", "c", "d");
+            graph.addDependency("d", "c");
+            graph.addDependency("d", "a");
+            Task task = graph.addDependency("d", "b");
+
+            assertEquals(List.of("c", "a", "b"), task.lineParents(Set.of("a", "b", "c", "d")));
+        }
+
+        @Test
+        void dependenciesThatAreNotDrawnGetNoLine() {
+            createAll("a", "b", "c");
+            graph.addDependency("c", "a");
+            Task task = graph.addDependency("c", "b");
+
+            assertEquals(List.of("b"), task.lineParents(Set.of("b", "c")));
+            assertTrue(task.lineParents(Set.of("c")).isEmpty());
         }
 
         @Test

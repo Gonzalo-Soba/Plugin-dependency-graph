@@ -2,13 +2,14 @@
 
 Plugin de Paper para organizar las tareas comunales de un servidor de Minecraft. Las tareas forman un grafo de dependencias que se muestra en la pantalla de logros (advancements) vanilla, así que los jugadores no necesitan mods en el cliente.
 
-> Versión actual: **0.2.1**.
+> Versión actual: **0.3.0**.
 
 ## Cómo se ve
 
 - Cada tarea es un logro en la pestaña "Tareas del servidor".
-- Las tareas sin dependencias cuelgan del logro raíz. La primera dependencia de cada tarea es la línea que la une con su padre; las demás aparecen en la descripción como "También requiere: ...".
+- Las tareas sin dependencias cuelgan del logro raíz. Cada dependencia es una línea que une la tarea con lo que requiere. Las dependencias que no son la primera también aparecen en la descripción como "También requiere: ...".
 - Las columnas indican la profundidad: todo lo que una tarea requiere queda a su izquierda.
+- Cada tarea se ubica a la altura de sus dependencias, en lugar de ir al final de la columna. Los grupos de tareas que no se conectan entre sí se dibujan en bloques separados, uno debajo del otro, con una fila vacía en medio.
 - El progreso es comunal: una tarea resuelta aparece completada para todos los jugadores, incluidos los que entran después.
 - Las tareas se manejan desde una ventana del juego (`/tareas`, la tecla G o el menú de pausa) o con los comandos `/tarea`. Ver [Interfaz](#interfaz).
 
@@ -66,11 +67,13 @@ El mundo de prueba es plano, en modo creativo y pacífico. Así es fácil agarra
 Jugadores: **A** y **B**.
 
 - [ ] **La pestaña se ve y es legible.** A crea "Madera", "Piedra", "Mesa de trabajo" (depende de "Madera"), "Horno" (depende de "Piedra" y después de "Madera") y "Pico" (depende de "Mesa de trabajo" y "Piedra"). Por ejemplo: `/tarea crear Mesa de trabajo` y `/tarea depende "Mesa de trabajo" Madera`. La pestaña "Tareas del servidor" muestra el raíz a la izquierda, cada tarea a la derecha de sus dependencias, y ningún ícono encima de otro.
+- [ ] **Bloques y altura.** A crea "Hacha" (depende de "Madera") después de las anteriores: queda a la altura de "Madera", no al final de la columna. Una tarea suelta nueva, por ejemplo `/tarea crear Pozo`, aparece en un bloque aparte debajo del resto, con una fila vacía en medio.
+- [ ] **Líneas múltiples.** "Horno" se une con una línea a "Piedra" y con otra a "Madera", y "Pico" a "Mesa de trabajo" y a "Piedra". Ningún logro de más aparece en la pestaña. Al resolver "Piedra" y "Madera", y después "Horno", no hay toasts ni mensajes de logro aparte del anuncio "✔".
 - [ ] **Tildes y colores.** Crear una tarea con título y descripción con tildes y ñ, por ejemplo `/tarea crear Jardín de la ñandú` y `/tarea desc "Jardín de la ñandú" Regar todos los días`. En la pestaña se ven bien, con el título en blanco, la descripción en gris, "Asignada a" en celeste y "También requiere" en amarillo.
 - [ ] **Sin toasts ni anuncios al entrar o reconstruir.** Con tareas ya resueltas, B sale y vuelve a entrar: no aparece ningún toast ni mensaje de logro en el chat. Lo mismo cuando A edita cualquier tarea (`desc`, `asignar`) y la pestaña se reconstruye.
 - [ ] **`/tarea resolver` anuncia una sola vez.** A resuelve una tarea: A y B ven un único mensaje "✔ A resolvió la tarea ...", sin el anuncio de logro vanilla, y la tarea aparece completada para los dos.
 - [ ] **Revocación con jugador offline.** A resuelve "Jardín" (sin dependencias) y B la ve completada. B sale. A la borra con `/tarea borrar Jardín` y la vuelve a crear con `/tarea crear Jardín`. B entra: "Jardín" aparece **pendiente**, no completada.
-- [ ] **Quitar dependencias.** Con "Horno" dependiendo de "Piedra" y "Madera": `/tarea quitardep Horno Piedra` mueve "Horno" a colgar de "Madera" en la pestaña, y `/tarea quitardep Horno Madera` lo deja colgando del raíz. Tab en el segundo argumento sugiere solo las dependencias de "Horno".
+- [ ] **Quitar dependencias.** Con "Horno" dependiendo de "Piedra" y "Madera": `/tarea quitardep Horno Piedra` borra la línea desde "Piedra" y deja la de "Madera", y `/tarea quitardep Horno Madera` lo deja colgando del raíz. Tab en el segundo argumento sugiere solo las dependencias de "Horno".
 - [ ] **Permisos.** En la consola, `op A` (B queda sin op). B crea "Silla" y A crea "Mesa".
   - B no puede borrar "Mesa"; sí puede borrar "Silla". A, como admin, puede borrar cualquiera.
   - B se asigna "Mesa"; A no puede soltarla salvo como admin, y `/tarea asignar Mesa` de A la reasigna avisando quién la tenía.
@@ -79,6 +82,7 @@ Jugadores: **A** y **B**.
 - [ ] **Interfaz: lista.** `/tareas` abre "Tareas del servidor". Las tareas aparecen primero las disponibles (▶, verde), después las bloqueadas (✘, gris) y al final las resueltas (✔, verde oscuro); dentro de cada grupo, por orden alfabético. El tooltip de cada botón muestra estado y asignado.
 - [ ] **Interfaz: lista con 30 tareas.** Con el servidor apagado, copiar `dev-server/samples/tasks-30.json` sobre `run/plugins/TaskGraph/tasks.json` y arrancar. `/tareas` muestra las 30, se puede desplazar hasta el final y el orden por grupos se mantiene. La pestaña de logros también se ve legible.
 - [ ] **Interfaz: crear y editar.** "Nueva tarea" con un ítem en la mano crea la tarea con ese ícono y abre su ficha. Un título repetido muestra el error y conserva lo escrito. "Editar" cambia título y descripción en un solo paso.
+- [ ] **Íconos.** `/tarea icono Madera ` y Tab sugiere ítems; `/tarea icono Madera oak_log` cambia el ícono en la pestaña y en la ficha. `/tarea icono Madera air` se rechaza. En "Nueva tarea", el ícono `DIAMOND` crea la tarea con un diamante aunque tengas otra cosa en la mano; `diamante` muestra el error y conserva lo escrito; vacío usa el ítem en la mano. "Cambiar ícono" en la ficha acepta `minecraft:oak_log`, y vacío con la mano vacía muestra el error.
 - [ ] **Interfaz: ficha y botones.** En la ficha se ve el ícono, la descripción y los datos. "Resolver" solo aparece si está disponible y anuncia en el chat una sola vez. "Agregar dependencia" ofrece solo tareas que no crean ciclos. "Quitar dependencia" lista solo las dependencias actuales.
 - [ ] **Interfaz: permisos.** B no ve "Borrar" en una tarea de A; A como op sí. B ve "Asignarme" en una tarea libre y no lo ve si la tiene otra persona; A como op ve "Reasignarme".
 - [ ] **Interfaz: ventana vieja.** A abre la ficha de una tarea y la deja abierta; B la borra con `/tarea borrar`. Cuando A toca cualquier botón, ve "Esa tarea ya no existe." y vuelve a la lista, sin errores en el log.
@@ -95,10 +99,11 @@ Si el archivo está dañado o tiene datos inválidos (por ejemplo, un ciclo de d
 
 ## Interfaz
 
-`/tareas` abre la lista de tareas en una ventana del juego. Hay dos atajos más, sin escribir comandos (ver [Atajos](#atajos)). Cada tarea abre su ficha, con botones para asignarse, soltar, resolver, agregar o quitar dependencias, editar y borrar. Cada botón aparece solo si quien mira puede usarlo.
+`/tareas` abre la lista de tareas en una ventana del juego. Hay dos atajos más, sin escribir comandos (ver [Atajos](#atajos)). Cada tarea abre su ficha, con botones para asignarse, soltar, resolver, agregar o quitar dependencias, editar, cambiar el ícono y borrar. Cada botón aparece solo si quien mira puede usarlo.
 
 - **Orden de la lista:** primero las disponibles (todas sus dependencias resueltas), después las bloqueadas y al final las resueltas.
-- **Nueva tarea:** el ícono es el ítem que tenés en la mano al tocar «Crear».
+- **Nueva tarea:** el campo «Ícono» es opcional. Acepta el id de un ítem con o sin `minecraft:` y sin distinguir mayúsculas (`diamond`, `minecraft:diamond`, `DIAMOND`). Si queda vacío, el ícono es el ítem que tenés en la mano al tocar «Crear».
+- **Cambiar ícono**, en la ficha: el mismo campo. Vacío usa el ítem que tenés en la mano.
 - **Agregar dependencia** solo ofrece tareas que no crearían un ciclo.
 - **Ventanas viejas:** si alguien cambia o borra una tarea mientras otra persona tiene su ficha abierta, los botones vuelven a comprobar todo al tocarse. Cada botón sirve una sola vez y vence a los 5 minutos.
 
@@ -126,11 +131,12 @@ Las tareas se nombran por su **título**, que es único: no distingue mayúscula
 | Comando | Qué hace |
 |---|---|
 | `/tareas` | Abre la interfaz con la lista de tareas (solo jugadores). |
-| `/tarea crear <título>` | Crea una tarea. El ícono es el ítem que tenés en la mano (papel si está vacía). |
+| `/tarea crear <título>` | Crea una tarea. El ícono es el ítem que tenés en la mano (papel si está vacía); se cambia después con `icono`. |
 | `/tarea renombrar "<título>" <nuevo título>` | Cambia el título. El estado, las dependencias y el progreso se conservan. |
 | `/tarea desc "<título>" <texto>` | Cambia la descripción. |
-| `/tarea depende "<título>" <dependencia>` | Hace que la tarea dependa de otra. Se rechaza si crea un ciclo. La primera dependencia es el padre visual; las siguientes se listan como "También requiere". |
-| `/tarea quitardep "<título>" <dependencia>` | Quita una dependencia. Si era el padre visual, la siguiente pasa a serlo; sin dependencias, la tarea vuelve a colgar del raíz. Tab sugiere solo las dependencias de esa tarea. |
+| `/tarea icono "<título>" <ítem>` | Cambia el ícono. Tab sugiere los ítems; acepta `diamond` o `minecraft:diamond`. Se rechazan los que no sirven de ícono, como el aire. |
+| `/tarea depende "<título>" <dependencia>` | Hace que la tarea dependa de otra. Se rechaza si crea un ciclo. Cada dependencia se dibuja con una línea; desde la segunda, también se listan en "También requiere". |
+| `/tarea quitardep "<título>" <dependencia>` | Quita una dependencia y su línea. Sin dependencias, la tarea vuelve a colgar del raíz. Tab sugiere solo las dependencias de esa tarea. |
 | `/tarea asignar <título>` | Te asigna la tarea. Si ya está asignada a otra persona se rechaza: esa persona la suelta o un admin la reasigna. |
 | `/tarea soltar <título>` | Quita la asignación. Solo quien la tiene asignada o un admin. |
 | `/tarea resolver <título>` | Marca la tarea como resuelta para todos. Requiere que todas sus dependencias estén resueltas. |
@@ -143,7 +149,7 @@ Las tareas se nombran por su **título**, que es único: no distingue mayúscula
 |---|---|---|
 | `taskgraph.admin` | operadores | Borrar cualquier tarea, soltar tareas de otros y reasignar con `asignar` una tarea que tiene otra persona. |
 
-Todo lo demás (crear, renombrar, describir, agregar y quitar dependencias, asignarse tareas libres, resolver y ver info) está abierto a todos los jugadores. La consola del servidor cuenta como admin. Las tareas creadas antes de que se guardara el creador solo las puede borrar un admin.
+Todo lo demás (crear, renombrar, describir, cambiar el ícono, agregar y quitar dependencias, asignarse tareas libres, resolver y ver info) está abierto a todos los jugadores. La consola del servidor cuenta como admin. Las tareas creadas antes de que se guardara el creador solo las puede borrar un admin.
 
 Cada cambio se guarda en el JSON y regenera la pestaña de logros para todos los jugadores online.
 

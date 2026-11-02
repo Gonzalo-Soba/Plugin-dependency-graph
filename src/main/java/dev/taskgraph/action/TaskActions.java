@@ -1,5 +1,6 @@
 package dev.taskgraph.action;
 
+import dev.taskgraph.graph.IconKeys;
 import dev.taskgraph.graph.PlayerRef;
 import dev.taskgraph.graph.Task;
 import dev.taskgraph.graph.TaskGraphException;
@@ -45,6 +46,11 @@ public final class TaskActions {
         return "No existe la tarea " + quoted(title) + ".";
     }
 
+    /** For an item id that doesn't name an item usable as an icon. */
+    public static String unknownIcon(String input) {
+        return "No hay ningún ítem " + quoted(input.strip()) + " que sirva de ícono. Usá su id, por ejemplo diamond o minecraft:oak_log.";
+    }
+
     /**
      * @param iconIsFallback whether {@code icon} replaces an empty hand, so the actor is told
      */
@@ -71,27 +77,28 @@ public final class TaskActions {
                 "Descripción de " + quoted(task.title()) + " actualizada."));
     }
 
+    /** @param icon namespaced key of an item already checked to work as an icon */
+    public ActionResult changeIcon(Actor actor, String taskId, String icon) {
+        return withTask(taskId, task -> ActionResult.success(
+                service.changeIcon(task.id(), icon),
+                "El ícono de " + quoted(task.title()) + " ahora es " + IconKeys.display(icon) + "."));
+    }
+
     public ActionResult addDependency(Actor actor, String taskId, String dependencyId) {
         return withTask(taskId, task -> withOther(task, dependencyId, dependency -> {
             Task updated = service.addDependency(task.id(), dependency.id());
-            boolean visualParent = updated.dependencies().size() == 1;
-            return ActionResult.success(updated, quoted(task.title()) + " ahora depende de " + quoted(dependency.title())
-                    + (visualParent ? "." : " (se muestra en \"También requiere\")."));
+            return ActionResult.success(updated, quoted(task.title()) + " ahora depende de " + quoted(dependency.title()) + ".");
         }));
     }
 
     public ActionResult removeDependency(Actor actor, String taskId, String dependencyId) {
         return withTask(taskId, task -> withOther(task, dependencyId, dependency -> {
-            boolean wasVisualParent = task.visualParent().filter(dependency.id()::equals).isPresent();
             Task updated = service.removeDependency(task.id(), dependency.id());
             String message = quoted(task.title()) + " ya no depende de " + quoted(dependency.title()) + ".";
-            if (!wasVisualParent) {
+            if (!updated.dependencies().isEmpty()) {
                 return ActionResult.success(updated, message);
             }
-            String newParent = updated.visualParent()
-                    .map(parentId -> "En la pestaña ahora cuelga de " + quoted(titleOf(parentId)) + ".")
-                    .orElse("En la pestaña ahora cuelga directamente del raíz.");
-            return ActionResult.success(updated, message, newParent);
+            return ActionResult.success(updated, message, "En la pestaña ahora cuelga directamente del raíz.");
         }));
     }
 
