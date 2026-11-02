@@ -425,6 +425,28 @@ class TaskActionsTest {
         }
 
         @Test
+        void anyoneHidesAndShowsResolvedTasks() {
+            Project base = project("Base");
+
+            ActionResult hidden = actions.setHideResolved(STEVE, base.id(), true);
+            assertSuccess("\"Base\" ahora oculta las ramas terminadas.", hidden);
+            assertEquals(List.of(TaskActions.HIDE_RESOLVED_NOTE), hidden.details());
+            assertTrue(service.project(base.id()).orElseThrow().hideResolved());
+
+            assertSuccess("\"Base\" ahora muestra todas las tareas resueltas.", actions.setHideResolved(STEVE, base.id(), false));
+            assertFalse(service.project(base.id()).orElseThrow().hideResolved());
+        }
+
+        @Test
+        void hidingTwiceSaysItAlreadyWas() {
+            actions.setHideResolved(ALEX, Project.GENERAL_ID, true);
+
+            assertSuccess("\"General\" ya ocultaba las ramas terminadas.", actions.setHideResolved(ALEX, Project.GENERAL_ID, true));
+            assertSuccess("\"Base\" ya mostraba todas las tareas resueltas.",
+                    actions.setHideResolved(ALEX, project("Base").id(), false));
+        }
+
+        @Test
         void unknownProjectMessage() {
             assertEquals("No existe el proyecto \"Nada\".", TaskActions.unknownProject("Nada"));
         }

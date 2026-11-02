@@ -110,6 +110,10 @@ public final class TaskCommand {
                                         .suggests(projectTitles(StringArgumentType::escapeIfRequired))
                                         .then(Commands.argument(NEW_TITLE, StringArgumentType.greedyString())
                                                 .executes(this::renameProject))))
+                        .then(Commands.literal("ocultar")
+                                .then(lastProject(PROJECT).executes(context -> setHideResolved(context, true))))
+                        .then(Commands.literal("mostrar")
+                                .then(lastProject(PROJECT).executes(context -> setHideResolved(context, false))))
                         .then(Commands.literal("borrar")
                                 .then(lastProject(PROJECT).executes(this::removeProject))))
                 .build();
@@ -192,6 +196,8 @@ public final class TaskCommand {
                 "proyecto lista",
                 "proyecto crear <título>",
                 "proyecto renombrar \"<proyecto>\" <nuevo título>",
+                "proyecto ocultar <proyecto> — oculta las ramas terminadas de su pestaña",
+                "proyecto mostrar <proyecto> — vuelve a mostrar todas las resueltas",
                 "proyecto borrar <proyecto> — solo admins, y solo si está vacío")) {
             sender.sendMessage(Component.text("/" + NAME + " " + usage, NamedTextColor.GRAY));
         }
@@ -309,7 +315,8 @@ public final class TaskCommand {
         for (Project project : graph.projects()) {
             List<Task> tasks = graph.tasksIn(project.id());
             long resolved = tasks.stream().filter(Task::resolved).count();
-            sender.sendMessage(Component.text(project.title() + " — " + resolved + " de " + tasks.size() + " resueltas",
+            String hiding = project.hideResolved() ? " (oculta ramas terminadas)" : "";
+            sender.sendMessage(Component.text(project.title() + " — " + resolved + " de " + tasks.size() + " resueltas" + hiding,
                     NamedTextColor.GRAY));
         }
         return Command.SINGLE_SUCCESS;
@@ -324,6 +331,10 @@ public final class TaskCommand {
     private int renameProject(CommandContext<CommandSourceStack> context) {
         String newTitle = unquote(StringArgumentType.getString(context, NEW_TITLE));
         return withProject(context, (actor, project) -> actions.renameProject(actor, project.id(), newTitle));
+    }
+
+    private int setHideResolved(CommandContext<CommandSourceStack> context, boolean hide) {
+        return withProject(context, (actor, project) -> actions.setHideResolved(actor, project.id(), hide));
     }
 
     private int removeProject(CommandContext<CommandSourceStack> context) {

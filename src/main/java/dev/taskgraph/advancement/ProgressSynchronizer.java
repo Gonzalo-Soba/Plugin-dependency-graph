@@ -19,9 +19,13 @@ import java.util.logging.Logger;
 
 /**
  * Makes each player's UAAPI progress match the graph: resolved tasks are granted, everything else
- * (unresolved tasks and retired keys of deleted or moved tasks) is revoked.
+ * (unresolved tasks and retired keys of deleted or moved tasks) is revoked. Keys with no advancement in
+ * any tab (retired keys, hidden tasks) are set straight in the database.
  */
 public final class ProgressSynchronizer {
+
+    // Task advancements keep UAAPI's default maximum progression of 1, so 1 means granted.
+    private static final int GRANTED = 1;
 
     private final Logger logger;
 
@@ -55,20 +59,30 @@ public final class ProgressSynchronizer {
 
         SyncPlan plan = SyncPlan.between(graph.resolvedKeys(), grantedKeys);
         for (TaskKey key : plan.toGrant()) {
-            advancement(tabs, key).grant(player, false);
+            Advancement advancement = advancement(tabs, key);
+            if (advancement != null) {
+                advancement.grant(player, false);
+            } else {
+                // Hidden task: once shown again it is already granted, so no toast or announcement follows.
+                setProgression(database, player, key, GRANTED);
+            }
         }
         for (TaskKey key : plan.toRevoke()) {
             Advancement advancement = advancement(tabs, key);
             if (advancement != null) {
                 advancement.revoke(player);
             } else {
-                // Retired key: no tab shows it anymore, so clear it straight in the database.
-                database.setProgression(TaskTabRenderer.taskKey(key), player, 0).exceptionally(error -> {
-                    logger.log(Level.WARNING, "Could not clear progress of retired key " + key + " for " + player.getName(), error);
-                    return null;
-                });
+                // Retired key or hidden task: no tab shows it, so clear it straight in the database.
+                setProgression(database, player, key, 0);
             }
         }
+    }
+
+    private void setProgression(DatabaseManager database, Player player, TaskKey key, int progression) {
+        database.setProgression(TaskTabRenderer.taskKey(key), player, progression).exceptionally(error -> {
+            logger.log(Level.WARNING, "Could not set progress of " + key + " to " + progression + " for " + player.getName(), error);
+            return null;
+        });
     }
 
     /** The advancement drawn for the key, or null if no tab shows it. */

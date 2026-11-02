@@ -26,6 +26,8 @@ public final class TaskActions {
 
     static final String FALLBACK_ICON_NOTE = "No tenías nada en la mano, así que el ícono es papel.";
     public static final String PROJECT_GONE = "Ese proyecto ya no existe.";
+    static final String HIDE_RESOLVED_NOTE =
+            "Una tarea resuelta se oculta de la pestaña cuando todo lo que depende de ella también está resuelto.";
 
     private final TaskService service;
     private final Consumer<String> announcer;
@@ -186,6 +188,21 @@ public final class TaskActions {
         return withProject(null, projectId, project -> {
             Project renamed = service.renameProject(project.id(), newTitle);
             return ActionResult.success(null, "El proyecto " + quoted(project.title()) + " ahora se llama " + quoted(renamed.title()) + ".");
+        });
+    }
+
+    /** Open to everyone, like renaming: it only changes what the project's tab shows. */
+    public ActionResult setHideResolved(Actor actor, String projectId, boolean hide) {
+        return withProject(null, projectId, project -> {
+            if (project.hideResolved() == hide) {
+                return ActionResult.success(null, quoted(project.title()) + (hide
+                        ? " ya ocultaba las ramas terminadas."
+                        : " ya mostraba todas las tareas resueltas."));
+            }
+            service.setHideResolved(project.id(), hide);
+            return hide
+                    ? ActionResult.success(null, quoted(project.title()) + " ahora oculta las ramas terminadas.", HIDE_RESOLVED_NOTE)
+                    : ActionResult.success(null, quoted(project.title()) + " ahora muestra todas las tareas resueltas.");
         });
     }
 

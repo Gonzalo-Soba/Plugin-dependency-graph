@@ -73,9 +73,10 @@ public final class TaskTabRenderer {
         AdvancementTab tab = api.createAdvancementTab(TabNamespaces.of(project.id()), BACKGROUND_TEXTURE);
 
         List<Task> tasks = graph.tasksIn(project.id());
-        Set<String> drawnIds = tasks.stream().map(Task::id).collect(Collectors.toSet());
+        // Hidden tasks aren't registered; the synchronizer keeps their progress straight in the database.
+        Set<String> drawnIds = graph.visibleTasksIn(project.id()).stream().map(Task::id).collect(Collectors.toSet());
         Map<String, NodePosition> positions = GraphLayout.compute(graph, drawnIds);
-        RootAdvancement root = new RootAdvancement(tab, ROOT_KEY, rootDisplay(project, tasks));
+        RootAdvancement root = new RootAdvancement(tab, ROOT_KEY, rootDisplay(project, tasks, tasks.size() - drawnIds.size()));
         Map<String, BaseAdvancement> advancements = new HashMap<>();
         // Topological order guarantees every parent is built before its children.
         for (Task task : graph.topologicalOrder()) {
@@ -100,11 +101,15 @@ public final class TaskTabRenderer {
         return tab;
     }
 
-    private static AdvancementDisplay rootDisplay(Project project, List<Task> tasks) {
+    private static AdvancementDisplay rootDisplay(Project project, List<Task> tasks, int hidden) {
         long resolved = tasks.stream().filter(Task::resolved).count();
-        Component progress = Component.text(resolved + " de " + tasks.size() + " tareas resueltas", NamedTextColor.GRAY);
+        List<Component> lines = new ArrayList<>();
+        lines.add(Component.text(resolved + " de " + tasks.size() + " tareas resueltas", NamedTextColor.GRAY));
+        if (hidden > 0) {
+            lines.add(Component.text(hidden == 1 ? "1 resuelta oculta" : hidden + " resueltas ocultas", NamedTextColor.DARK_GRAY));
+        }
         return new AdvancementDisplayBuilder(new ItemStack(ROOT_ICON), legacy(Component.text(project.title(), NamedTextColor.GOLD)))
-                .description(legacy(progress))
+                .description(lines.stream().map(TaskTabRenderer::legacy).toArray(String[]::new))
                 .goalFrame()
                 .coords(0, 0)
                 .build();
