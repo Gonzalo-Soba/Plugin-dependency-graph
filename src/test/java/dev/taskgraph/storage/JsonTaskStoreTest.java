@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -61,6 +62,19 @@ class JsonTaskStoreTest {
         assertEquals(sample.tasks(), sample.tasksIn(Project.GENERAL_ID));
         assertEquals(Set.of(TaskStatus.values()),
                 sample.tasks().stream().map(task -> sample.status(task.id())).collect(Collectors.toSet()));
+    }
+
+    @Test
+    void devServerSampleWithProjectsIsValidAndCrossesProjects() throws IOException {
+        TaskGraph sample = DevServerSamples.load("tasks-projects.json", directory);
+
+        assertEquals(List.of(Project.GENERAL_ID, "base", "mineria"), sample.projects().stream().map(Project::id).toList());
+        assertEquals(11, sample.size());
+        assertTrue(sample.tasks().stream().anyMatch(task -> task.dependencies().stream()
+                .anyMatch(id -> !sample.get(id).orElseThrow().project().equals(task.project()))));
+        assertEquals(Set.of(TaskStatus.values()),
+                sample.tasks().stream().map(task -> sample.status(task.id())).collect(Collectors.toSet()));
+        assertFalse(Files.exists(directory.resolve("tasks-projects.v1.json.bak")));
     }
 
     @Test
