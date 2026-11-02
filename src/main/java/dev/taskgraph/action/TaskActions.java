@@ -2,6 +2,7 @@ package dev.taskgraph.action;
 
 import dev.taskgraph.graph.IconKeys;
 import dev.taskgraph.graph.PlayerRef;
+import dev.taskgraph.graph.Project;
 import dev.taskgraph.graph.Task;
 import dev.taskgraph.graph.TaskGraphException;
 import dev.taskgraph.graph.TaskPermissions;
@@ -24,6 +25,7 @@ import java.util.logging.Logger;
 public final class TaskActions {
 
     static final String FALLBACK_ICON_NOTE = "No tenías nada en la mano, así que el ícono es papel.";
+    public static final String PROJECT_GONE = "Ese proyecto ya no existe.";
 
     private final TaskService service;
     private final Consumer<String> announcer;
@@ -42,8 +44,16 @@ public final class TaskActions {
         return service.findByTitle(title);
     }
 
+    public Optional<Project> findProjectByTitle(String title) {
+        return service.findProjectByTitle(title);
+    }
+
     public static String unknownTitle(String title) {
         return "No existe la tarea " + quoted(title) + ".";
+    }
+
+    public static String unknownProject(String title) {
+        return "No existe el proyecto " + quoted(title) + ".";
     }
 
     /** For an item id that doesn't name an item usable as an icon. */
@@ -51,13 +61,24 @@ public final class TaskActions {
         return "No hay ningún ítem " + quoted(input.strip()) + " que sirva de ícono. Usá su id, por ejemplo diamond o minecraft:oak_log.";
     }
 
+    /** Creates the task in General. */
+    public ActionResult create(Actor actor, String title, String icon, boolean iconIsFallback) {
+        return create(actor, title, icon, iconIsFallback, Project.GENERAL_ID);
+    }
+
     /**
      * @param iconIsFallback whether {@code icon} replaces an empty hand, so the actor is told
      */
-    public ActionResult create(Actor actor, String title, String icon, boolean iconIsFallback) {
+    public ActionResult create(Actor actor, String title, String icon, boolean iconIsFallback, String projectId) {
+        Optional<Project> project = service.project(projectId);
+        if (project.isEmpty()) {
+            return ActionResult.failure(null, PROJECT_GONE);
+        }
         return run(null, () -> {
-            Task task = service.create(title, icon, actor.playerRef().orElse(null));
-            String message = "Tarea " + quoted(task.title()) + " creada.";
+            Task task = service.create(title, icon, actor.playerRef().orElse(null), projectId);
+            String message = project.get().isGeneral()
+                    ? "Tarea " + quoted(task.title()) + " creada."
+                    : "Tarea " + quoted(task.title()) + " creada en " + quoted(project.get().title()) + ".";
             return iconIsFallback
                     ? ActionResult.success(task, message, FALLBACK_ICON_NOTE)
                     : ActionResult.success(task, message);
@@ -146,6 +167,38 @@ public final class TaskActions {
         });
     }
 
+    public ActionResult moveTask(Actor actor, String taskId, String projectId) {
+        return withTask(taskId, task -> withProject(task, projectId, project -> ActionResult.success(
+                service.moveTask(task.id(), project.id()),
+                quoted(task.title()) + " ahora está en el proyecto " + quoted(project.title()) + ".")));
+    }
+
+    /** Project actions report no task: {@link ActionResult#task()} is always {@code null}. */
+    public ActionResult createProject(Actor actor, String title) {
+        return run(null, () -> {
+            Project project = service.createProject(title);
+            return ActionResult.success(null, "Proyecto " + quoted(project.title()) + " creado.",
+                    "Tiene su propia pestaña en la pantalla de logros.");
+        });
+    }
+
+    public ActionResult renameProject(Actor actor, String projectId, String newTitle) {
+        return withProject(null, projectId, project -> {
+            Project renamed = service.renameProject(project.id(), newTitle);
+            return ActionResult.success(null, "El proyecto " + quoted(project.title()) + " ahora se llama " + quoted(renamed.title()) + ".");
+        });
+    }
+
+    public ActionResult removeProject(Actor actor, String projectId) {
+        return withProject(null, projectId, project -> {
+            if (!TaskPermissions.canRemoveProject(actor)) {
+                return ActionResult.failure(null, "Solo un admin puede borrar proyectos.");
+            }
+            service.removeProject(project.id());
+            return ActionResult.success(null, "Proyecto " + quoted(project.title()) + " borrado.");
+        });
+    }
+
     public ActionResult remove(Actor actor, String taskId) {
         return withTask(taskId, task -> {
             if (!TaskPermissions.canRemove(task, actor)) {
@@ -166,6 +219,15 @@ public final class TaskActions {
         return run(task.get(), () -> action.apply(task.get()));
     }
 
+    /** @param task reported with the result when the project no longer exists, may be {@code null} */
+    private ActionResult withProject(Task task, String projectId, Function<Project, ActionResult> action) {
+        Optional<Project> project = service.project(projectId);
+        if (project.isEmpty()) {
+            return ActionResult.failure(task, PROJECT_GONE);
+        }
+        return run(task, () -> action.apply(project.get()));
+    }
+
     private ActionResult withOther(Task task, String otherId, Function<Task, ActionResult> action) {
         return service.task(otherId)
                 .map(action)
@@ -177,7 +239,7 @@ public final class TaskActions {
         try {
             return action.get();
         } catch (TaskGraphException exception) {
-            return ActionResult.failure(task, RejectionMessages.of(exception, this::titleOf));
+            return ActionResult.failure(task, RejectionMessages.of(exception, this::titleOf, this::projectTitleOf));
         } catch (TaskStoreException exception) {
             logger.log(Level.SEVERE, "Could not save tasks", exception);
             return ActionResult.failure(task, "No se pudo guardar el cambio. Revisá el log del servidor.");
@@ -186,6 +248,10 @@ public final class TaskActions {
 
     private String titleOf(String id) {
         return service.task(id).map(Task::title).orElse(id);
+    }
+
+    private String projectTitleOf(String id) {
+        return service.project(id).map(Project::title).orElse(id);
     }
 
     static String quoted(String title) {

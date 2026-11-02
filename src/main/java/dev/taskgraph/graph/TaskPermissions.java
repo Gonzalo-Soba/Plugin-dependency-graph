@@ -38,6 +38,11 @@ public final class TaskPermissions {
         }
     }
 
+    /** Only admins remove projects; creating and renaming them, and moving tasks between them, is open. */
+    public static boolean canRemoveProject(Actor actor) {
+        return actor.admin();
+    }
+
     /** The creator or an admin. Tasks without a recorded creator can only be removed by admins. */
     public static boolean canRemove(Task task, Actor actor) {
         return actor.admin() || actor.is(task.creatorOptional());
