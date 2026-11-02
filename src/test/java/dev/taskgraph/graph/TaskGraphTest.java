@@ -174,6 +174,26 @@ class TaskGraphTest {
         }
 
         @Test
+        void everyDrawnDependencyGetsALineInDependencyOrder() {
+            createAll("a", "b", "c", "d");
+            graph.addDependency("d", "c");
+            graph.addDependency("d", "a");
+            Task task = graph.addDependency("d", "b");
+
+            assertEquals(List.of("c", "a", "b"), task.lineParents(Set.of("a", "b", "c", "d")));
+        }
+
+        @Test
+        void dependenciesThatAreNotDrawnGetNoLine() {
+            createAll("a", "b", "c");
+            graph.addDependency("c", "a");
+            Task task = graph.addDependency("c", "b");
+
+            assertEquals(List.of("b"), task.lineParents(Set.of("b", "c")));
+            assertTrue(task.lineParents(Set.of("c")).isEmpty());
+        }
+
+        @Test
         void taskWithoutDependenciesHasNoVisualParent() {
             createAll("a");
 

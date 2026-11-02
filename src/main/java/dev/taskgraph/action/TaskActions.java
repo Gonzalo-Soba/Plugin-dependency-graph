@@ -74,24 +74,18 @@ public final class TaskActions {
     public ActionResult addDependency(Actor actor, String taskId, String dependencyId) {
         return withTask(taskId, task -> withOther(task, dependencyId, dependency -> {
             Task updated = service.addDependency(task.id(), dependency.id());
-            boolean visualParent = updated.dependencies().size() == 1;
-            return ActionResult.success(updated, quoted(task.title()) + " ahora depende de " + quoted(dependency.title())
-                    + (visualParent ? "." : " (se muestra en \"También requiere\")."));
+            return ActionResult.success(updated, quoted(task.title()) + " ahora depende de " + quoted(dependency.title()) + ".");
         }));
     }
 
     public ActionResult removeDependency(Actor actor, String taskId, String dependencyId) {
         return withTask(taskId, task -> withOther(task, dependencyId, dependency -> {
-            boolean wasVisualParent = task.visualParent().filter(dependency.id()::equals).isPresent();
             Task updated = service.removeDependency(task.id(), dependency.id());
             String message = quoted(task.title()) + " ya no depende de " + quoted(dependency.title()) + ".";
-            if (!wasVisualParent) {
+            if (!updated.dependencies().isEmpty()) {
                 return ActionResult.success(updated, message);
             }
-            String newParent = updated.visualParent()
-                    .map(parentId -> "En la pestaña ahora cuelga de " + quoted(titleOf(parentId)) + ".")
-                    .orElse("En la pestaña ahora cuelga directamente del raíz.");
-            return ActionResult.success(updated, message, newParent);
+            return ActionResult.success(updated, message, "En la pestaña ahora cuelga directamente del raíz.");
         }));
     }
 

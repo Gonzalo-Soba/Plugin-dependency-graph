@@ -125,18 +125,18 @@ class TaskActionsTest {
     class Dependencies {
 
         @Test
-        void firstDependencyIsTheVisualParentAndLaterOnesAreExtra() {
+        void addingDependencyReportsIt() {
             Task table = create(ALEX, "Mesa");
             Task wood = create(ALEX, "Madera");
             Task stone = create(ALEX, "Piedra");
 
             assertSuccess("\"Mesa\" ahora depende de \"Madera\".", actions.addDependency(ALEX, table.id(), wood.id()));
-            assertSuccess("\"Mesa\" ahora depende de \"Piedra\" (se muestra en \"También requiere\").",
+            assertSuccess("\"Mesa\" ahora depende de \"Piedra\".",
                     actions.addDependency(ALEX, table.id(), stone.id()));
         }
 
         @Test
-        void removingExtraDependencyKeepsParent() {
+        void removingOneOfSeveralDependenciesHasNoDetails() {
             Task table = create(ALEX, "Mesa");
             Task wood = create(ALEX, "Madera");
             Task stone = create(ALEX, "Piedra");
@@ -148,20 +148,6 @@ class TaskActionsTest {
             assertSuccess("\"Mesa\" ya no depende de \"Piedra\".", result);
             assertTrue(result.details().isEmpty());
             assertEquals(List.of(wood.id()), result.task().dependencies());
-        }
-
-        @Test
-        void removingVisualParentReportsNewParent() {
-            Task table = create(ALEX, "Mesa");
-            Task wood = create(ALEX, "Madera");
-            Task stone = create(ALEX, "Piedra");
-            actions.addDependency(ALEX, table.id(), wood.id());
-            actions.addDependency(ALEX, table.id(), stone.id());
-
-            ActionResult result = actions.removeDependency(ALEX, table.id(), wood.id());
-
-            assertSuccess("\"Mesa\" ya no depende de \"Madera\".", result);
-            assertEquals(List.of("En la pestaña ahora cuelga de \"Piedra\"."), result.details());
         }
 
         @Test
