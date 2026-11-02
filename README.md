@@ -2,7 +2,7 @@
 
 Plugin de Paper para organizar las tareas comunales de un servidor de Minecraft. Las tareas forman un grafo de dependencias que se muestra en la pantalla de logros (advancements) vanilla, así que los jugadores no necesitan mods en el cliente.
 
-> Última versión: **0.2.1**. En desarrollo: 0.3.0, con un grafo más ordenado (bloques y líneas múltiples) e íconos elegibles.
+> Versión actual: **0.3.0**.
 
 ## Cómo se ve
 
@@ -149,7 +149,7 @@ Las tareas se nombran por su **título**, que es único: no distingue mayúscula
 |---|---|---|
 | `taskgraph.admin` | operadores | Borrar cualquier tarea, soltar tareas de otros y reasignar con `asignar` una tarea que tiene otra persona. |
 
-Todo lo demás (crear, renombrar, describir, agregar y quitar dependencias, asignarse tareas libres, resolver y ver info) está abierto a todos los jugadores. La consola del servidor cuenta como admin. Las tareas creadas antes de que se guardara el creador solo las puede borrar un admin.
+Todo lo demás (crear, renombrar, describir, cambiar el ícono, agregar y quitar dependencias, asignarse tareas libres, resolver y ver info) está abierto a todos los jugadores. La consola del servidor cuenta como admin. Las tareas creadas antes de que se guardara el creador solo las puede borrar un admin.
 
 Cada cambio se guarda en el JSON y regenera la pestaña de logros para todos los jugadores online.
 
