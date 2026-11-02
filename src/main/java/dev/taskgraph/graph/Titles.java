@@ -37,10 +37,15 @@ public final class Titles {
      * {@code taken} reports a clash. Titles with no usable characters fall back to {@code tarea}.
      */
     static String generateId(String title, Predicate<String> taken) {
+        return generateId(title, FALLBACK_ID, taken);
+    }
+
+    /** Same as {@link #generateId(String, Predicate)}, with {@code fallback} for titles with no usable characters. */
+    static String generateId(String title, String fallback, Predicate<String> taken) {
         String base = NON_ID_CHARS.matcher(key(title)).replaceAll("_");
         base = trimUnderscores(base);
         if (base.isEmpty()) {
-            base = FALLBACK_ID;
+            base = fallback;
         }
         String candidate = fit(base, "");
         for (int suffix = 2; taken.test(candidate); suffix++) {

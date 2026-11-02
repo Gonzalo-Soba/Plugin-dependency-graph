@@ -1,9 +1,11 @@
 package dev.taskgraph.graph;
 
-import dev.taskgraph.storage.JsonTaskStore;
+import dev.taskgraph.storage.DevServerSamples;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -184,9 +186,8 @@ class GraphLayoutTest {
     }
 
     @Test
-    void sampleWithThirtyTasksIsValidAndBarelyTallerThanBefore() {
-        // Tests run from the project directory, where dev-server/ lives.
-        TaskGraph sample = new JsonTaskStore(Path.of("dev-server", "samples", "tasks-30.json")).load();
+    void sampleWithThirtyTasksIsValidAndBarelyTallerThanBefore(@TempDir Path directory) throws IOException {
+        TaskGraph sample = DevServerSamples.load("tasks-30.json", directory);
 
         Map<String, NodePosition> positions = GraphLayout.compute(sample);
 
