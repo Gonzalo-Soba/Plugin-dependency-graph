@@ -95,6 +95,10 @@ public final class TaskService {
         return apply(next -> next.removeProject(id));
     }
 
+    public Project setHideResolved(String id, boolean hide) {
+        return apply(next -> next.setHideResolved(id, hide));
+    }
+
     public Task rename(String id, String newTitle) {
         return apply(next -> next.rename(id, newTitle));
     }

@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -228,6 +229,91 @@ class TaskGraphProjectsTest {
 
             assertEquals(Set.of(new TaskKey(base.id(), wall.id())), graph.retiredKeys());
             assertEquals(Set.of(wall.id()), graph.removedIds());
+        }
+    }
+
+    @Nested
+    class Hiding {
+
+        private Task wood;
+        private Task table;
+        private Task house;
+
+        @BeforeEach
+        void chain() {
+            wood = graph.create("Madera", ICON);
+            table = graph.create("Mesa", ICON);
+            house = graph.create("Casa", ICON);
+            graph.addDependency(table.id(), wood.id());
+            graph.addDependency(house.id(), table.id());
+            graph.resolve(wood.id());
+            graph.resolve(table.id());
+            graph.setHideResolved(GENERAL, true);
+        }
+
+        @Test
+        void togglesPerProjectAndKeepsTheRest() {
+            Project base = graph.createProject("Base");
+
+            assertEquals(new Project(base.id(), "Base", true), graph.setHideResolved(base.id(), true));
+            assertEquals(new Project(base.id(), "Base", false), graph.setHideResolved(base.id(), false));
+            assertTrue(graph.project(GENERAL).orElseThrow().hideResolved());
+        }
+
+        @Test
+        void resolvedTaskWhoseDependentsAreAllResolvedIsHidden() {
+            assertTrue(graph.isHidden(wood.id()));
+        }
+
+        @Test
+        void resolvedTaskThatStillUnlocksSomethingPendingStaysVisible() {
+            assertFalse(graph.isHidden(table.id()));
+            assertEquals(List.of(table.id(), house.id()), graph.visibleTasksIn(GENERAL).stream().map(Task::id).toList());
+            assertEquals(List.of(wood.id()), graph.hiddenTasksIn(GENERAL).stream().map(Task::id).toList());
+        }
+
+        @Test
+        void pendingTasksAreNeverHidden() {
+            assertFalse(graph.isHidden(house.id()));
+        }
+
+        @Test
+        void resolvedLeafIsHidden() {
+            graph.resolve(house.id());
+
+            assertTrue(graph.isHidden(house.id()));
+            assertTrue(graph.visibleTasksIn(GENERAL).isEmpty());
+        }
+
+        @Test
+        void pendingDependentInAnotherProjectKeepsItVisible() {
+            Project base = graph.createProject("Base");
+            Task wall = graph.create("Muralla", ICON, null, base.id());
+            graph.addDependency(wall.id(), wood.id());
+
+            assertFalse(graph.isHidden(wood.id()));
+        }
+
+        @Test
+        void projectThatShowsResolvedHidesNothing() {
+            graph.setHideResolved(GENERAL, false);
+
+            assertTrue(graph.hiddenTasksIn(GENERAL).isEmpty());
+            assertFalse(graph.isHidden(wood.id()));
+        }
+
+        @Test
+        void newPendingDependentShowsTheTaskAgain() {
+            Task axe = graph.create("Hacha", ICON);
+
+            graph.addDependency(axe.id(), wood.id());
+
+            assertFalse(graph.isHidden(wood.id()));
+        }
+
+        @Test
+        void copyKeepsTheSetting() {
+            assertTrue(graph.copy().project(GENERAL).orElseThrow().hideResolved());
         }
     }
 

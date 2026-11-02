@@ -30,4 +30,8 @@ public record Project(String id, String title, boolean hideResolved) {
     Project withTitle(String newTitle) {
         return new Project(id, newTitle, hideResolved);
     }
+
+    Project withHideResolved(boolean hide) {
+        return new Project(id, title, hide);
+    }
 }

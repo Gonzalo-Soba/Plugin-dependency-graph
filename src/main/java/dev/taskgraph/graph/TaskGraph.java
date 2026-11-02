@@ -337,6 +337,37 @@ public final class TaskGraph {
         return projects.remove(id);
     }
 
+    public Project setHideResolved(String id, boolean hide) {
+        Project updated = requireProject(id).withHideResolved(hide);
+        projects.put(id, updated);
+        return updated;
+    }
+
+    /**
+     * Whether the task is left out of its tab: its project hides resolved tasks, and it is a finished
+     * branch, i.e. resolved and with every task that depends on it (in any project) resolved too.
+     * A resolved task that still unlocks something pending stays visible.
+     */
+    public boolean isHidden(String id) {
+        Task task = require(id);
+        if (!task.resolved() || !requireProject(task.project()).hideResolved()) {
+            return false;
+        }
+        return tasks.values().stream()
+                .filter(other -> other.dependencies().contains(id))
+                .allMatch(Task::resolved);
+    }
+
+    /** Tasks of the project drawn in its tab, in creation order. */
+    public List<Task> visibleTasksIn(String projectId) {
+        return tasksIn(projectId).stream().filter(task -> !isHidden(task.id())).toList();
+    }
+
+    /** Tasks of the project left out of its tab, in creation order. */
+    public List<Task> hiddenTasksIn(String projectId) {
+        return tasksIn(projectId).stream().filter(task -> isHidden(task.id())).toList();
+    }
+
     /** Projects in creation order, General first. */
     public List<Project> projects() {
         return List.copyOf(projects.values());

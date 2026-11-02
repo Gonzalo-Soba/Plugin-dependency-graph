@@ -10,6 +10,7 @@ Plugin de Paper para organizar las tareas comunales de un servidor de Minecraft.
 - Las tareas sin dependencias en su proyecto cuelgan del logro raíz. Cada dependencia del mismo proyecto es una línea que une la tarea con lo que requiere. Las dependencias que no son la primera también aparecen en la descripción como "También requiere: ...", y las de otro proyecto dicen cuál, por ejemplo "Picar piedra (en General)".
 - Las columnas indican la profundidad: todo lo que una tarea requiere queda a su izquierda.
 - Cada tarea se ubica a la altura de sus dependencias, en lugar de ir al final de la columna. Los grupos de tareas que no se conectan entre sí se dibujan en bloques separados, uno debajo del otro, con una fila vacía en medio.
+- **Ocultar resueltas**, una opción de cada proyecto: saca de su pestaña las ramas terminadas, es decir, las tareas resueltas de las que ya no depende nada pendiente (en ningún proyecto). Una tarea resuelta que todavía desbloquea algo pendiente sigue a la vista. El raíz dice cuántas hay ocultas, y al volver a mostrarlas aparecen completadas, sin toasts.
 - El progreso es comunal: una tarea resuelta aparece completada para todos los jugadores, incluidos los que entran después.
 - Las tareas se manejan desde una ventana del juego (`/tareas`, la tecla G o el menú de pausa) o con los comandos `/tarea`. Ver [Interfaz](#interfaz).
 
@@ -92,6 +93,12 @@ Jugadores: **A** y **B**.
 - [ ] **Mover una tarea resuelta.** Crear el proyecto "Base" otra vez, resolver una tarea de General sin dependencias y moverla a "Base": aparece completada en "Base", sin toast ni mensaje de logro, y ya no está en General. B sale y vuelve a entrar: sigue igual.
 - [ ] **Interfaz: proyectos.** `/tareas` muestra un botón por proyecto con "(resueltas/total)" y «Nuevo proyecto». Crear uno desde ahí abre su lista vacía. «Nueva tarea» dentro de un proyecto la crea en ese proyecto (su pestaña). En la ficha, «Mover a otro proyecto» lista los demás proyectos y «Volver» lleva a la lista del proyecto nuevo. «Agregar dependencia» muestra "(en General)" en las tareas de otro proyecto. B no ve «Borrar proyecto»; A sí, salvo en General. «Renombrar proyecto» con el mismo nombre dice "No había cambios.".
 - [ ] **Interfaz: proyecto viejo.** A abre la lista de un proyecto vacío y la deja abierta; desde otro cliente, un admin lo borra con `/tarea proyecto borrar`. Cuando A toca «Nueva tarea», ve "Ese proyecto ya no existe." en la lista de proyectos, sin errores en el log.
+- [ ] **Ocultar ramas terminadas.** Con el servidor apagado, copiar `dev-server/samples/tasks-projects.json` sobre `run/plugins/TaskGraph/tasks.json` y arrancar. En General están resueltas "Juntar madera", "Picar piedra" y "Mesa de trabajo".
+  - `/tarea proyecto ocultar General`: no desaparece ninguna, porque las tres todavía desbloquean algo pendiente. "Juntar madera" la necesita "Portón" (en Base), "Picar piedra" la necesitan "Horno" y "Muralla", y "Mesa de trabajo" la necesita "Pico de hierro". El raíz no dice nada de ocultas.
+  - `/tarea resolver Horno`, `/tarea resolver Pico de hierro`: ahora "Mesa de trabajo" y "Horno" quedan con todos sus dependientes resueltos y desaparecen de General; el raíz dice "2 resueltas ocultas". "Picar piedra" sigue por "Muralla".
+  - `/tarea proyecto lista` marca General con "(oculta ramas terminadas)". `/tareas` → General sigue listando las 4 tareas y dice "2 resueltas ocultas".
+  - B sale y vuelve a entrar: las ocultas no aparecen y no hay toasts.
+  - `/tarea proyecto mostrar General`: las dos vuelven a aparecer **completadas**, sin toast ni mensaje de logro. El botón «Ocultar resueltas» / «Mostrar resueltas» del Dialog hace lo mismo.
 - [ ] **Interfaz: lista con 30 tareas.** Con el servidor apagado, copiar `dev-server/samples/tasks-30.json` sobre `run/plugins/TaskGraph/tasks.json` y arrancar. `/tareas` muestra las 30, se puede desplazar hasta el final y el orden por grupos se mantiene. La pestaña de logros también se ve legible.
 - [ ] **Interfaz: crear y editar.** "Nueva tarea" con un ítem en la mano crea la tarea con ese ícono y abre su ficha. Un título repetido muestra el error y conserva lo escrito. "Editar" cambia título y descripción en un solo paso.
 - [ ] **Íconos.** `/tarea icono Madera ` y Tab sugiere ítems; `/tarea icono Madera oak_log` cambia el ícono en la pestaña y en la ficha. `/tarea icono Madera air` se rechaza. En "Nueva tarea", el ícono `DIAMOND` crea la tarea con un diamante aunque tengas otra cosa en la mano; `diamante` muestra el error y conserva lo escrito; vacío usa el ítem en la mano. "Cambiar ícono" en la ficha acepta `minecraft:oak_log`, y vacío con la mano vacía muestra el error.
@@ -121,7 +128,7 @@ Si el archivo viejo tiene errores, no se convierte ni se toca.
 
 `/tareas` abre una ventana del juego con la lista de proyectos. Hay dos atajos más, sin escribir comandos (ver [Atajos](#atajos)). Cada proyecto abre su lista de tareas, y cada tarea abre su ficha, con botones para asignarse, soltar, resolver, agregar o quitar dependencias, editar, cambiar el ícono, mover a otro proyecto y borrar. Cada botón aparece solo si quien mira puede usarlo.
 
-- **Proyectos:** cada botón muestra cuántas tareas tiene resueltas, por ejemplo "Base (2/5)". «Nuevo proyecto» crea otro, con su propia pestaña de logros. Dentro de un proyecto están «Renombrar proyecto» y, solo para admins y si no es General, «Borrar proyecto».
+- **Proyectos:** cada botón muestra cuántas tareas tiene resueltas, por ejemplo "Base (2/5)". «Nuevo proyecto» crea otro, con su propia pestaña de logros. Dentro de un proyecto están «Renombrar proyecto», «Ocultar resueltas» (o «Mostrar resueltas») y, solo para admins y si no es General, «Borrar proyecto». La lista del Dialog muestra siempre todas las tareas, también las ocultas en la pestaña.
 - **Orden de la lista:** primero las disponibles (todas sus dependencias resueltas), después las bloqueadas y al final las resueltas.
 - **Nueva tarea:** se crea en el proyecto que tenés abierto. El campo «Ícono» es opcional. Acepta el id de un ítem con o sin `minecraft:` y sin distinguir mayúsculas (`diamond`, `minecraft:diamond`, `DIAMOND`). Si queda vacío, el ícono es el ítem que tenés en la mano al tocar «Crear».
 - **Elegir ícono**, en Nueva tarea y en Cambiar ícono: abre un menú de cofre con categorías (Bloques, Naturaleza, Herramientas, Combate, Comida, Redstone, Decoración, Varios) y «Todos los ítems», en orden alfabético y por páginas. Al hacer clic en un ítem volvés a la ventana con lo que ya habías escrito y el ícono elegido. Cerrar el cofre o «Cancelar» vuelve sin cambios. Los ítems del menú no se pueden sacar.
@@ -169,6 +176,7 @@ Las tareas se nombran por su **título**, que es único: no distingue mayúscula
 | `/tarea proyecto lista` | Lista los proyectos con sus tareas resueltas. `/tarea proyecto` solo hace lo mismo. |
 | `/tarea proyecto crear <título>` | Crea un proyecto, con su propia pestaña de logros. |
 | `/tarea proyecto renombrar "<proyecto>" <nuevo título>` | Cambia el nombre de un proyecto, incluido General. |
+| `/tarea proyecto ocultar <proyecto>` | Oculta de la pestaña del proyecto las ramas terminadas. `mostrar` las vuelve a mostrar. |
 | `/tarea proyecto borrar <proyecto>` | Borra un proyecto. Solo admins. Se rechaza si tiene tareas o si es General. |
 
 ### Permisos
@@ -177,7 +185,7 @@ Las tareas se nombran por su **título**, que es único: no distingue mayúscula
 |---|---|---|
 | `taskgraph.admin` | operadores | Borrar cualquier tarea, borrar proyectos, soltar tareas de otros y reasignar con `asignar` una tarea que tiene otra persona. |
 
-Todo lo demás (crear, renombrar, describir, cambiar el ícono, agregar y quitar dependencias, mover tareas, crear y renombrar proyectos, asignarse tareas libres, resolver y ver info) está abierto a todos los jugadores. La consola del servidor cuenta como admin. Las tareas creadas antes de que se guardara el creador solo las puede borrar un admin.
+Todo lo demás (crear, renombrar, describir, cambiar el ícono, agregar y quitar dependencias, mover tareas, crear y renombrar proyectos, ocultar o mostrar resueltas, asignarse tareas libres, resolver y ver info) está abierto a todos los jugadores. La consola del servidor cuenta como admin. Las tareas creadas antes de que se guardara el creador solo las puede borrar un admin.
 
 Cada cambio se guarda en el JSON y regenera la pestaña de logros para todos los jugadores online.
 
