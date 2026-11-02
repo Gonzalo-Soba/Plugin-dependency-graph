@@ -7,7 +7,7 @@ Plugin de Paper para organizar las tareas comunales de un servidor de Minecraft.
 ## Cómo se ve
 
 - Cada tarea es un logro en la pestaña "Tareas del servidor".
-- Las tareas sin dependencias cuelgan del logro raíz. La primera dependencia de cada tarea es la línea que la une con su padre; las demás aparecen en la descripción como "También requiere: ...".
+- Las tareas sin dependencias cuelgan del logro raíz. Cada dependencia es una línea que une la tarea con lo que requiere. Las dependencias que no son la primera también aparecen en la descripción como "También requiere: ...".
 - Las columnas indican la profundidad: todo lo que una tarea requiere queda a su izquierda.
 - Cada tarea se ubica a la altura de sus dependencias, en lugar de ir al final de la columna. Los grupos de tareas que no se conectan entre sí se dibujan en bloques separados, uno debajo del otro, con una fila vacía en medio.
 - El progreso es comunal: una tarea resuelta aparece completada para todos los jugadores, incluidos los que entran después.
@@ -68,11 +68,12 @@ Jugadores: **A** y **B**.
 
 - [ ] **La pestaña se ve y es legible.** A crea "Madera", "Piedra", "Mesa de trabajo" (depende de "Madera"), "Horno" (depende de "Piedra" y después de "Madera") y "Pico" (depende de "Mesa de trabajo" y "Piedra"). Por ejemplo: `/tarea crear Mesa de trabajo` y `/tarea depende "Mesa de trabajo" Madera`. La pestaña "Tareas del servidor" muestra el raíz a la izquierda, cada tarea a la derecha de sus dependencias, y ningún ícono encima de otro.
 - [ ] **Bloques y altura.** A crea "Hacha" (depende de "Madera") después de las anteriores: queda a la altura de "Madera", no al final de la columna. Una tarea suelta nueva, por ejemplo `/tarea crear Pozo`, aparece en un bloque aparte debajo del resto, con una fila vacía en medio.
+- [ ] **Líneas múltiples.** "Horno" se une con una línea a "Piedra" y con otra a "Madera", y "Pico" a "Mesa de trabajo" y a "Piedra". Ningún logro de más aparece en la pestaña. Al resolver "Piedra" y "Madera", y después "Horno", no hay toasts ni mensajes de logro aparte del anuncio "✔".
 - [ ] **Tildes y colores.** Crear una tarea con título y descripción con tildes y ñ, por ejemplo `/tarea crear Jardín de la ñandú` y `/tarea desc "Jardín de la ñandú" Regar todos los días`. En la pestaña se ven bien, con el título en blanco, la descripción en gris, "Asignada a" en celeste y "También requiere" en amarillo.
 - [ ] **Sin toasts ni anuncios al entrar o reconstruir.** Con tareas ya resueltas, B sale y vuelve a entrar: no aparece ningún toast ni mensaje de logro en el chat. Lo mismo cuando A edita cualquier tarea (`desc`, `asignar`) y la pestaña se reconstruye.
 - [ ] **`/tarea resolver` anuncia una sola vez.** A resuelve una tarea: A y B ven un único mensaje "✔ A resolvió la tarea ...", sin el anuncio de logro vanilla, y la tarea aparece completada para los dos.
 - [ ] **Revocación con jugador offline.** A resuelve "Jardín" (sin dependencias) y B la ve completada. B sale. A la borra con `/tarea borrar Jardín` y la vuelve a crear con `/tarea crear Jardín`. B entra: "Jardín" aparece **pendiente**, no completada.
-- [ ] **Quitar dependencias.** Con "Horno" dependiendo de "Piedra" y "Madera": `/tarea quitardep Horno Piedra` mueve "Horno" a colgar de "Madera" en la pestaña, y `/tarea quitardep Horno Madera` lo deja colgando del raíz. Tab en el segundo argumento sugiere solo las dependencias de "Horno".
+- [ ] **Quitar dependencias.** Con "Horno" dependiendo de "Piedra" y "Madera": `/tarea quitardep Horno Piedra` borra la línea desde "Piedra" y deja la de "Madera", y `/tarea quitardep Horno Madera` lo deja colgando del raíz. Tab en el segundo argumento sugiere solo las dependencias de "Horno".
 - [ ] **Permisos.** En la consola, `op A` (B queda sin op). B crea "Silla" y A crea "Mesa".
   - B no puede borrar "Mesa"; sí puede borrar "Silla". A, como admin, puede borrar cualquiera.
   - B se asigna "Mesa"; A no puede soltarla salvo como admin, y `/tarea asignar Mesa` de A la reasigna avisando quién la tenía.
@@ -131,8 +132,8 @@ Las tareas se nombran por su **título**, que es único: no distingue mayúscula
 | `/tarea crear <título>` | Crea una tarea. El ícono es el ítem que tenés en la mano (papel si está vacía). |
 | `/tarea renombrar "<título>" <nuevo título>` | Cambia el título. El estado, las dependencias y el progreso se conservan. |
 | `/tarea desc "<título>" <texto>` | Cambia la descripción. |
-| `/tarea depende "<título>" <dependencia>` | Hace que la tarea dependa de otra. Se rechaza si crea un ciclo. La primera dependencia es el padre visual; las siguientes se listan como "También requiere". |
-| `/tarea quitardep "<título>" <dependencia>` | Quita una dependencia. Si era el padre visual, la siguiente pasa a serlo; sin dependencias, la tarea vuelve a colgar del raíz. Tab sugiere solo las dependencias de esa tarea. |
+| `/tarea depende "<título>" <dependencia>` | Hace que la tarea dependa de otra. Se rechaza si crea un ciclo. Cada dependencia se dibuja con una línea; desde la segunda, también se listan en "También requiere". |
+| `/tarea quitardep "<título>" <dependencia>` | Quita una dependencia y su línea. Sin dependencias, la tarea vuelve a colgar del raíz. Tab sugiere solo las dependencias de esa tarea. |
 | `/tarea asignar <título>` | Te asigna la tarea. Si ya está asignada a otra persona se rechaza: esa persona la suelta o un admin la reasigna. |
 | `/tarea soltar <título>` | Quita la asignación. Solo quien la tiene asignada o un admin. |
 | `/tarea resolver <título>` | Marca la tarea como resuelta para todos. Requiere que todas sus dependencias estén resueltas. |

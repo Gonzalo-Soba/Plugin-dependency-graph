@@ -2,11 +2,11 @@ package dev.taskgraph.advancement;
 
 import com.fren_gor.ultimateAdvancementAPI.AdvancementTab;
 import com.fren_gor.ultimateAdvancementAPI.UltimateAdvancementAPI;
-import com.fren_gor.ultimateAdvancementAPI.advancement.Advancement;
 import com.fren_gor.ultimateAdvancementAPI.advancement.BaseAdvancement;
 import com.fren_gor.ultimateAdvancementAPI.advancement.RootAdvancement;
 import com.fren_gor.ultimateAdvancementAPI.advancement.display.AdvancementDisplay;
 import com.fren_gor.ultimateAdvancementAPI.advancement.display.AdvancementDisplayBuilder;
+import com.fren_gor.ultimateAdvancementAPI.advancement.multiParents.MultiParentsAdvancement;
 import com.fren_gor.ultimateAdvancementAPI.util.AdvancementKey;
 import dev.taskgraph.graph.GraphLayout;
 import dev.taskgraph.graph.NodePosition;
@@ -21,6 +21,7 @@ import org.bukkit.inventory.ItemStack;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -58,11 +59,18 @@ public final class TaskTabRenderer {
         Map<String, NodePosition> positions = GraphLayout.compute(graph);
         RootAdvancement root = new RootAdvancement(tab, ROOT_KEY, rootDisplay(graph));
         Map<String, BaseAdvancement> advancements = new HashMap<>();
-        // Topological order guarantees the visual parent is built before its children.
+        // Topological order guarantees every parent is built before its children.
         for (Task task : graph.topologicalOrder()) {
-            Advancement parent = task.visualParent().<Advancement>map(advancements::get).orElse(root);
+            List<BaseAdvancement> parents = task.lineParents(positions.keySet()).stream().map(advancements::get).toList();
             String key = TASK_KEY_PREFIX + task.id();
-            advancements.put(task.id(), new BaseAdvancement(parent, key, taskDisplay(graph, task, positions.get(task.id()))));
+            AdvancementDisplay display = taskDisplay(graph, task, positions.get(task.id()));
+            BaseAdvancement advancement = switch (parents.size()) {
+                case 0 -> new BaseAdvancement(root, key, display);
+                case 1 -> new BaseAdvancement(parents.getFirst(), key, display);
+                // Draws a line to every parent through FakeAdvancements, which UAAPI neither saves nor registers.
+                default -> new MultiParentsAdvancement(key, display, new LinkedHashSet<>(parents));
+            };
+            advancements.put(task.id(), advancement);
         }
 
         tab.registerAdvancements(root, new HashSet<>(advancements.values()));

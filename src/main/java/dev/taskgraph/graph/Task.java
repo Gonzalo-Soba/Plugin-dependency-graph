@@ -3,6 +3,7 @@ package dev.taskgraph.graph;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Immutable snapshot of a task. {@link TaskGraph} replaces instances on every change.
@@ -54,6 +55,14 @@ public record Task(
 
     public Optional<String> visualParent() {
         return dependencies.isEmpty() ? Optional.empty() : Optional.of(dependencies.getFirst());
+    }
+
+    /**
+     * Dependencies joined to this task by a line: those among {@code drawnIds}, in dependency order.
+     * Dependencies that are not drawn have no line to point at.
+     */
+    public List<String> lineParents(Set<String> drawnIds) {
+        return dependencies.stream().filter(drawnIds::contains).toList();
     }
 
     /** Dependencies other than the visual parent, listed in the advancement description. */
