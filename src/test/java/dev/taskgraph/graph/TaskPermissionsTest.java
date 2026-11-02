@@ -24,6 +24,17 @@ class TaskPermissionsTest {
     }
 
     @Nested
+    class Projects {
+
+        @Test
+        void onlyAdminsAndConsoleRemoveProjects() {
+            assertFalse(TaskPermissions.canRemoveProject(ALEX_PLAYER));
+            assertTrue(TaskPermissions.canRemoveProject(ADMIN));
+            assertTrue(TaskPermissions.canRemoveProject(Actor.console()));
+        }
+    }
+
+    @Nested
     class Remove {
 
         @Test

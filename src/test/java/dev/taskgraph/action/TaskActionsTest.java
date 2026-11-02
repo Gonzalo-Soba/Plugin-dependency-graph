@@ -1,5 +1,6 @@
 package dev.taskgraph.action;
 
+import dev.taskgraph.graph.Project;
 import dev.taskgraph.graph.Task;
 import dev.taskgraph.graph.TaskGraph;
 import dev.taskgraph.graph.TaskPermissions.Actor;
@@ -325,6 +326,107 @@ class TaskActionsTest {
             actions.addDependency(ALEX, table.id(), wood.id());
 
             assertFailure("No se puede borrar \"Madera\": dependen de ella \"Mesa\".", actions.remove(ALEX, wood.id()));
+        }
+    }
+
+    @Nested
+    class Projects {
+
+        private Project project(String title) {
+            assertTrue(actions.createProject(ALEX, title).success());
+            return service.findProjectByTitle(title).orElseThrow();
+        }
+
+        @Test
+        void anyoneCreatesAProject() {
+            ActionResult result = actions.createProject(STEVE, "Base del norte");
+
+            assertSuccess("Proyecto \"Base del norte\" creado.", result);
+            assertEquals(List.of("Tiene su propia pestaña en la pantalla de logros."), result.details());
+            assertNull(result.task());
+            assertTrue(service.findProjectByTitle("base del norte").isPresent());
+        }
+
+        @Test
+        void repeatedProjectTitleIsRejected() {
+            project("Base");
+
+            assertFailure("Ya existe un proyecto llamado \"Base\".", actions.createProject(STEVE, "BASE"));
+        }
+
+        @Test
+        void anyoneRenamesAProject() {
+            Project base = project("Base");
+
+            assertSuccess("El proyecto \"Base\" ahora se llama \"Castillo\".", actions.renameProject(STEVE, base.id(), "Castillo"));
+        }
+
+        @Test
+        void onlyAdminsRemoveProjects() {
+            Project base = project("Base");
+
+            assertFailure("Solo un admin puede borrar proyectos.", actions.removeProject(ALEX, base.id()));
+            assertSuccess("Proyecto \"Base\" borrado.", actions.removeProject(ADMIN, base.id()));
+            assertTrue(service.project(base.id()).isEmpty());
+        }
+
+        @Test
+        void removingProjectWithTasksListsThem() {
+            Project base = project("Base");
+            actions.create(ALEX, "Muralla", ICON, false, base.id());
+
+            assertFailure("No se puede borrar el proyecto \"Base\": todavía tiene tareas (\"Muralla\"). Movelas o borralas primero.",
+                    actions.removeProject(ADMIN, base.id()));
+        }
+
+        @Test
+        void generalCannotBeRemoved() {
+            assertFailure("El proyecto \"General\" no se puede borrar.", actions.removeProject(ADMIN, Project.GENERAL_ID));
+        }
+
+        @Test
+        void createsTaskInAProjectNamingIt() {
+            Project base = project("Base");
+
+            ActionResult result = actions.create(ALEX, "Muralla", ICON, false, base.id());
+
+            assertSuccess("Tarea \"Muralla\" creada en \"Base\".", result);
+            assertEquals(base.id(), result.task().project());
+        }
+
+        @Test
+        void anyoneMovesATask() {
+            Project base = project("Base");
+            Task wall = create(ALEX, "Muralla");
+
+            ActionResult result = actions.moveTask(STEVE, wall.id(), base.id());
+
+            assertSuccess("\"Muralla\" ahora está en el proyecto \"Base\".", result);
+            assertEquals(base.id(), result.task().project());
+        }
+
+        @Test
+        void movingToItsOwnProjectIsRejected() {
+            Task wall = create(ALEX, "Muralla");
+
+            assertFailure("\"Muralla\" ya está en el proyecto \"General\".", actions.moveTask(ALEX, wall.id(), Project.GENERAL_ID));
+        }
+
+        @Test
+        void staleProjectIdIsReported() {
+            Project base = project("Base");
+            Task wall = create(ALEX, "Muralla");
+            actions.removeProject(ADMIN, base.id());
+
+            assertFailure(TaskActions.PROJECT_GONE, actions.moveTask(ALEX, wall.id(), base.id()));
+            assertFailure(TaskActions.PROJECT_GONE, actions.create(ALEX, "Torre", ICON, false, base.id()));
+            assertFailure(TaskActions.PROJECT_GONE, actions.renameProject(ALEX, base.id(), "Otra"));
+            assertTrue(service.findByTitle("Torre").isEmpty());
+        }
+
+        @Test
+        void unknownProjectMessage() {
+            assertEquals("No existe el proyecto \"Nada\".", TaskActions.unknownProject("Nada"));
         }
     }
 
