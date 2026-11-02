@@ -7,6 +7,7 @@ import dev.taskgraph.advancement.TaskTabPublisher;
 import dev.taskgraph.advancement.TaskTabRenderer;
 import dev.taskgraph.command.TaskCommand;
 import dev.taskgraph.command.TasksCommand;
+import dev.taskgraph.dialog.IconPicker;
 import dev.taskgraph.dialog.TaskDialogs;
 import dev.taskgraph.graph.TaskGraph;
 import dev.taskgraph.listener.PlayerSyncListener;
@@ -54,7 +55,13 @@ public final class TaskGraphPlugin extends JavaPlugin {
         TaskActions actions = new TaskActions(service,
                 message -> getServer().broadcast(Component.text(message, NamedTextColor.GREEN)), getLogger());
         TaskCommand command = new TaskCommand(service, actions);
-        TaskDialogs dialogs = new TaskDialogs(this, service, actions);
+        IconPicker iconPicker = new IconPicker(this);
+        getServer().getPluginManager().registerEvents(iconPicker, this);
+        List<String> unknownIcons = IconPicker.unknownCatalogKeys();
+        if (!unknownIcons.isEmpty()) {
+            getLogger().warning("The icon picker skips items this version doesn't have: " + String.join(", ", unknownIcons));
+        }
+        TaskDialogs dialogs = new TaskDialogs(this, service, actions, iconPicker);
         TasksCommand tasksCommand = new TasksCommand(dialogs);
         getServer().getPluginManager().registerEvents(new QuickAccessListener(this, dialogs), this);
         getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, event -> {
