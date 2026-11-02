@@ -2,7 +2,7 @@
 
 Plugin de Paper para organizar las tareas comunales de un servidor de Minecraft. Las tareas forman un grafo de dependencias que se muestra en la pantalla de logros (advancements) vanilla, así que los jugadores no necesitan mods en el cliente.
 
-> Versión actual: **0.2.1**.
+> Última versión: **0.2.1**. En desarrollo: 0.3.0, con un grafo más ordenado (bloques y líneas múltiples) e íconos elegibles.
 
 ## Cómo se ve
 
