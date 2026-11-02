@@ -6,8 +6,8 @@ Plugin de Paper para organizar las tareas comunales de un servidor de Minecraft.
 
 ## Cómo se ve
 
-- Cada tarea es un logro en la pestaña "Tareas del servidor".
-- Las tareas sin dependencias cuelgan del logro raíz. Cada dependencia es una línea que une la tarea con lo que requiere. Las dependencias que no son la primera también aparecen en la descripción como "También requiere: ...".
+- Cada proyecto es una pestaña de la pantalla de logros, y cada tarea es un logro en la pestaña de su proyecto. Las tareas sin proyecto están en "General", que es siempre la primera pestaña. El logro raíz de cada pestaña muestra el nombre del proyecto y cuántas de sus tareas están resueltas.
+- Las tareas sin dependencias en su proyecto cuelgan del logro raíz. Cada dependencia del mismo proyecto es una línea que une la tarea con lo que requiere. Las dependencias que no son la primera también aparecen en la descripción como "También requiere: ...", y las de otro proyecto dicen cuál, por ejemplo "Picar piedra (en General)".
 - Las columnas indican la profundidad: todo lo que una tarea requiere queda a su izquierda.
 - Cada tarea se ubica a la altura de sus dependencias, en lugar de ir al final de la columna. Los grupos de tareas que no se conectan entre sí se dibujan en bloques separados, uno debajo del otro, con una fila vacía en medio.
 - El progreso es comunal: una tarea resuelta aparece completada para todos los jugadores, incluidos los que entran después.
@@ -66,7 +66,7 @@ El mundo de prueba es plano, en modo creativo y pacífico. Así es fácil agarra
 
 Jugadores: **A** y **B**.
 
-- [ ] **La pestaña se ve y es legible.** A crea "Madera", "Piedra", "Mesa de trabajo" (depende de "Madera"), "Horno" (depende de "Piedra" y después de "Madera") y "Pico" (depende de "Mesa de trabajo" y "Piedra"). Por ejemplo: `/tarea crear Mesa de trabajo` y `/tarea depende "Mesa de trabajo" Madera`. La pestaña "Tareas del servidor" muestra el raíz a la izquierda, cada tarea a la derecha de sus dependencias, y ningún ícono encima de otro.
+- [ ] **La pestaña se ve y es legible.** A crea "Madera", "Piedra", "Mesa de trabajo" (depende de "Madera"), "Horno" (depende de "Piedra" y después de "Madera") y "Pico" (depende de "Mesa de trabajo" y "Piedra"). Por ejemplo: `/tarea crear Mesa de trabajo` y `/tarea depende "Mesa de trabajo" Madera`. La pestaña "General" muestra el raíz a la izquierda, cada tarea a la derecha de sus dependencias, y ningún ícono encima de otro.
 - [ ] **Bloques y altura.** A crea "Hacha" (depende de "Madera") después de las anteriores: queda a la altura de "Madera", no al final de la columna. Una tarea suelta nueva, por ejemplo `/tarea crear Pozo`, aparece en un bloque aparte debajo del resto, con una fila vacía en medio.
 - [ ] **Líneas múltiples.** "Horno" se une con una línea a "Piedra" y con otra a "Madera", y "Pico" a "Mesa de trabajo" y a "Piedra". Ningún logro de más aparece en la pestaña. Al resolver "Piedra" y "Madera", y después "Horno", no hay toasts ni mensajes de logro aparte del anuncio "✔".
 - [ ] **Tildes y colores.** Crear una tarea con título y descripción con tildes y ñ, por ejemplo `/tarea crear Jardín de la ñandú` y `/tarea desc "Jardín de la ñandú" Regar todos los días`. En la pestaña se ven bien, con el título en blanco, la descripción en gris, "Asignada a" en celeste y "También requiere" en amarillo.
@@ -80,7 +80,10 @@ Jugadores: **A** y **B**.
   - Con `deop A`, A ya no puede reasignar "Mesa" mientras la tenga B. `/tarea soltar Mesa` de B la libera.
 - [ ] **Títulos sin distinguir mayúsculas ni tildes.** `/tarea info jardin` encuentra "Jardín", y `/tarea crear JARDIN` se rechaza porque ya existe. `/tarea renombrar Jardín Huerta` cambia el nombre en la pestaña y conserva el estado.
 - [ ] **Interfaz: lista.** `/tareas` abre "Tareas del servidor". Las tareas aparecen primero las disponibles (▶, verde), después las bloqueadas (✘, gris) y al final las resueltas (✔, verde oscuro); dentro de cada grupo, por orden alfabético. El tooltip de cada botón muestra estado y asignado.
-- [ ] **Migración del formato 1.** Con el servidor apagado, copiar `dev-server/samples/tasks-30.json` (formato 1) sobre `run/plugins/TaskGraph/tasks.json` y arrancar. El log muestra `Migrated tasks.json to format version 2` y `Loaded 30 tasks in 1 projects`. Aparece `run/plugins/TaskGraph/tasks.v1.json.bak` igual al ejemplo, y `tasks.json` dice `"version": 2` y tiene `"project": "general"` en cada tarea. La pestaña y `/tareas` se ven igual que antes. Al reiniciar otra vez no hay una nueva migración.
+- [ ] **Migración del formato 1.** Con el servidor apagado, copiar `dev-server/samples/tasks-30.json` (formato 1) sobre `run/plugins/TaskGraph/tasks.json` y arrancar. El log muestra `Migrated tasks.json to format version 2` y `Loaded 30 tasks in 1 projects`. Aparece `run/plugins/TaskGraph/tasks.v1.json.bak` igual al ejemplo, y `tasks.json` dice `"version": 2` y tiene `"project": "general"` en cada tarea. La pestaña, que ahora se llama "General", y `/tareas` muestran las mismas tareas con el mismo estado. Al reiniciar otra vez no hay una nueva migración.
+- [ ] **Varias pestañas.** Con el servidor apagado, copiar `dev-server/samples/tasks-projects.json` sobre `run/plugins/TaskGraph/tasks.json` y arrancar. El log muestra `Loaded 11 tasks in 3 projects`. La pantalla de logros tiene tres pestañas, en este orden: "General", "Base" y "Minería". Cada raíz muestra el nombre del proyecto y sus resueltas ("3 de 4" en General). En "Base", "Portón" tiene una línea a "Muralla" y dice "También requiere: Juntar madera (en General)"; "Muralla" cuelga del raíz y dice "También requiere: Picar piedra (en General)". "Pico de hierro" cuelga del raíz de "Minería".
+- [ ] **Orden estable de pestañas.** Con el ejemplo anterior, A resuelve `/tarea resolver Horno` y después `/tarea resolver "Pico de hierro"`, y edita una tarea de "Base" (`/tarea desc Pozo Con balde`). Después de cada cambio las pestañas siguen en el mismo orden, el raíz de "Minería" dice "1 de 3" y "Pico de hierro" aparece completada. Lo mismo después de que B sale y vuelve a entrar.
+- [ ] **Pantalla abierta mientras otro resuelve.** B abre la pantalla de logros en la pestaña "Base" y la deja abierta. A resuelve `/tarea resolver Pozo`. B sigue en "Base", la pantalla no se cierra y "Pozo" aparece completada (si hace falta, al cambiar de pestaña y volver). Probarlo también con B en "Minería".
 - [ ] **Interfaz: lista con 30 tareas.** Con el servidor apagado, copiar `dev-server/samples/tasks-30.json` sobre `run/plugins/TaskGraph/tasks.json` y arrancar. `/tareas` muestra las 30, se puede desplazar hasta el final y el orden por grupos se mantiene. La pestaña de logros también se ve legible.
 - [ ] **Interfaz: crear y editar.** "Nueva tarea" con un ítem en la mano crea la tarea con ese ícono y abre su ficha. Un título repetido muestra el error y conserva lo escrito. "Editar" cambia título y descripción en un solo paso.
 - [ ] **Íconos.** `/tarea icono Madera ` y Tab sugiere ítems; `/tarea icono Madera oak_log` cambia el ícono en la pestaña y en la ficha. `/tarea icono Madera air` se rechaza. En "Nueva tarea", el ícono `DIAMOND` crea la tarea con un diamante aunque tengas otra cosa en la mano; `diamante` muestra el error y conserva lo escrito; vacío usa el ítem en la mano. "Cambiar ícono" en la ficha acepta `minecraft:oak_log`, y vacío con la mano vacía muestra el error.
@@ -104,6 +107,8 @@ Si el archivo está dañado o tiene datos inválidos (por ejemplo, un ciclo de d
 - el log muestra `Migrated tasks.json to format version 2`.
 
 Si el archivo viejo tiene errores, no se convierte ni se toca.
+
+Por ahora los proyectos se crean editando `tasks.json` con el servidor apagado (ver `dev-server/samples/tasks-projects.json`); los comandos para manejarlos llegan más adelante en la 0.4.0.
 
 ## Interfaz
 

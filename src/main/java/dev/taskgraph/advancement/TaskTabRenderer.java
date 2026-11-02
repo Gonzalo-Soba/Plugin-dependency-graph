@@ -8,10 +8,13 @@ import com.fren_gor.ultimateAdvancementAPI.advancement.display.AdvancementDispla
 import com.fren_gor.ultimateAdvancementAPI.advancement.display.AdvancementDisplayBuilder;
 import com.fren_gor.ultimateAdvancementAPI.advancement.multiParents.MultiParentsAdvancement;
 import com.fren_gor.ultimateAdvancementAPI.util.AdvancementKey;
+import dev.taskgraph.action.TaskTexts;
 import dev.taskgraph.graph.GraphLayout;
 import dev.taskgraph.graph.NodePosition;
+import dev.taskgraph.graph.Project;
 import dev.taskgraph.graph.Task;
 import dev.taskgraph.graph.TaskGraph;
+import dev.taskgraph.graph.TaskKey;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
@@ -21,17 +24,21 @@ import org.bukkit.inventory.ItemStack;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
- * Builds the advancement tab from the graph. UAAPI tabs are immutable once registered, so every
- * render unregisters the previous tab and registers a new one under the same namespace.
+ * Builds one advancement tab per project. UAAPI tabs are immutable once registered, so every render
+ * unregisters the previous tabs and registers new ones under the same namespaces.
+ * <p>
+ * Every render rebuilds all the tabs, not only the one that changed: the client puts each tab it
+ * receives at the end of its list, so sending them again in project order keeps the order stable.
  */
 public final class TaskTabRenderer {
-
-    public static final String NAMESPACE = "taskgraph";
 
     private static final String ROOT_KEY = "root";
     // Prefix keeps task keys apart from the root key, even for a task with id "root".
@@ -48,22 +55,36 @@ public final class TaskTabRenderer {
         this.api = api;
     }
 
-    public static AdvancementKey taskKey(String taskId) {
-        return new AdvancementKey(NAMESPACE, TASK_KEY_PREFIX + taskId);
+    public static AdvancementKey taskKey(TaskKey key) {
+        return new AdvancementKey(TabNamespaces.of(key.project()), TASK_KEY_PREFIX + key.task());
     }
 
-    public AdvancementTab render(TaskGraph graph) {
-        api.unregisterAdvancementTab(NAMESPACE);
-        AdvancementTab tab = api.createAdvancementTab(NAMESPACE, BACKGROUND_TEXTURE);
+    /** @return the tab of every project, by project id, in tab order */
+    public Map<String, AdvancementTab> render(TaskGraph graph) {
+        api.unregisterPluginAdvancementTabs();
+        Map<String, AdvancementTab> tabs = new LinkedHashMap<>();
+        for (Project project : graph.projects()) {
+            tabs.put(project.id(), renderProject(graph, project));
+        }
+        return tabs;
+    }
 
-        Map<String, NodePosition> positions = GraphLayout.compute(graph);
-        RootAdvancement root = new RootAdvancement(tab, ROOT_KEY, rootDisplay(graph));
+    private AdvancementTab renderProject(TaskGraph graph, Project project) {
+        AdvancementTab tab = api.createAdvancementTab(TabNamespaces.of(project.id()), BACKGROUND_TEXTURE);
+
+        List<Task> tasks = graph.tasksIn(project.id());
+        Set<String> drawnIds = tasks.stream().map(Task::id).collect(Collectors.toSet());
+        Map<String, NodePosition> positions = GraphLayout.compute(graph, drawnIds);
+        RootAdvancement root = new RootAdvancement(tab, ROOT_KEY, rootDisplay(project, tasks));
         Map<String, BaseAdvancement> advancements = new HashMap<>();
         // Topological order guarantees every parent is built before its children.
         for (Task task : graph.topologicalOrder()) {
-            List<BaseAdvancement> parents = task.lineParents(positions.keySet()).stream().map(advancements::get).toList();
+            if (!drawnIds.contains(task.id())) {
+                continue;
+            }
+            List<BaseAdvancement> parents = task.lineParents(drawnIds).stream().map(advancements::get).toList();
             String key = TASK_KEY_PREFIX + task.id();
-            AdvancementDisplay display = taskDisplay(graph, task, positions.get(task.id()));
+            AdvancementDisplay display = taskDisplay(graph, task, drawnIds, positions.get(task.id()));
             BaseAdvancement advancement = switch (parents.size()) {
                 case 0 -> new BaseAdvancement(root, key, display);
                 case 1 -> new BaseAdvancement(parents.getFirst(), key, display);
@@ -79,28 +100,25 @@ public final class TaskTabRenderer {
         return tab;
     }
 
-    private static AdvancementDisplay rootDisplay(TaskGraph graph) {
-        Component progress = Component.text(graph.resolvedIds().size() + " de " + graph.size() + " tareas resueltas", NamedTextColor.GRAY);
-        return new AdvancementDisplayBuilder(new ItemStack(ROOT_ICON), legacy(Component.text("Tareas del servidor", NamedTextColor.GOLD)))
+    private static AdvancementDisplay rootDisplay(Project project, List<Task> tasks) {
+        long resolved = tasks.stream().filter(Task::resolved).count();
+        Component progress = Component.text(resolved + " de " + tasks.size() + " tareas resueltas", NamedTextColor.GRAY);
+        return new AdvancementDisplayBuilder(new ItemStack(ROOT_ICON), legacy(Component.text(project.title(), NamedTextColor.GOLD)))
                 .description(legacy(progress))
                 .goalFrame()
                 .coords(0, 0)
                 .build();
     }
 
-    private static AdvancementDisplay taskDisplay(TaskGraph graph, Task task, NodePosition position) {
+    private static AdvancementDisplay taskDisplay(TaskGraph graph, Task task, Set<String> drawnIds, NodePosition position) {
         List<Component> lines = new ArrayList<>();
         if (!task.description().isEmpty()) {
             lines.add(Component.text(task.description(), NamedTextColor.GRAY));
         }
         task.assigneeOptional().ifPresent(assignee ->
                 lines.add(Component.text("Asignada a: " + assignee.name(), NamedTextColor.AQUA)));
-        if (!task.extraRequirements().isEmpty()) {
-            List<String> titles = task.extraRequirements().stream()
-                    .map(id -> graph.get(id).map(Task::title).orElse(id))
-                    .toList();
-            lines.add(Component.text("También requiere: " + String.join(", ", titles), NamedTextColor.YELLOW));
-        }
+        TaskTexts.alsoRequires(graph, task, drawnIds)
+                .ifPresent(line -> lines.add(Component.text(line, NamedTextColor.YELLOW)));
 
         // Column 0 is taken by the root, so tasks start one column to the right.
         return new AdvancementDisplayBuilder(TaskIcons.of(task.icon()), legacy(Component.text(task.title(), NamedTextColor.WHITE)))

@@ -1,0 +1,111 @@
+{
+  "version": 2,
+  "projects": [
+    {"id": "general", "title": "General", "hideResolved": false},
+    {"id": "base", "title": "Base", "hideResolved": false},
+    {"id": "mineria", "title": "Minería", "hideResolved": false}
+  ],
+  "tasks": [
+    {
+      "id": "juntar_madera",
+      "title": "Juntar madera",
+      "description": "Tarea de prueba en General.",
+      "icon": "minecraft:oak_log",
+      "dependencies": [],
+      "resolved": true,
+      "project": "general"
+    },
+    {
+      "id": "picar_piedra",
+      "title": "Picar piedra",
+      "description": "Tarea de prueba en General.",
+      "icon": "minecraft:cobblestone",
+      "dependencies": [],
+      "resolved": true,
+      "project": "general"
+    },
+    {
+      "id": "mesa_de_trabajo",
+      "title": "Mesa de trabajo",
+      "description": "Tarea de prueba en General.",
+      "icon": "minecraft:crafting_table",
+      "dependencies": ["juntar_madera"],
+      "resolved": true,
+      "project": "general"
+    },
+    {
+      "id": "horno",
+      "title": "Horno",
+      "description": "Tarea de prueba en General.",
+      "icon": "minecraft:furnace",
+      "dependencies": ["picar_piedra"],
+      "resolved": false,
+      "project": "general"
+    },
+    {
+      "id": "muralla",
+      "title": "Muralla",
+      "description": "Requiere una tarea de General: no tiene línea.",
+      "icon": "minecraft:stone_bricks",
+      "dependencies": ["picar_piedra"],
+      "resolved": false,
+      "project": "base"
+    },
+    {
+      "id": "porton",
+      "title": "Portón",
+      "description": "Línea a Muralla; Juntar madera va en «También requiere».",
+      "icon": "minecraft:oak_door",
+      "dependencies": ["muralla", "juntar_madera"],
+      "resolved": false,
+      "project": "base"
+    },
+    {
+      "id": "torre",
+      "title": "Torre",
+      "description": "Tarea de prueba en Base.",
+      "icon": "minecraft:stone_brick_stairs",
+      "dependencies": ["muralla"],
+      "resolved": false,
+      "project": "base"
+    },
+    {
+      "id": "pozo",
+      "title": "Pozo",
+      "description": "Tarea suelta en Base.",
+      "icon": "minecraft:water_bucket",
+      "dependencies": [],
+      "resolved": false,
+      "project": "base"
+    },
+    {
+      "id": "pico_de_hierro",
+      "title": "Pico de hierro",
+      "description": "Solo requiere tareas de General.",
+      "icon": "minecraft:iron_pickaxe",
+      "dependencies": ["mesa_de_trabajo", "horno"],
+      "resolved": false,
+      "project": "mineria"
+    },
+    {
+      "id": "mina",
+      "title": "Mina",
+      "description": "Tarea de prueba en Minería.",
+      "icon": "minecraft:rail",
+      "dependencies": ["pico_de_hierro"],
+      "resolved": false,
+      "project": "mineria"
+    },
+    {
+      "id": "rieles",
+      "title": "Rieles",
+      "description": "Tarea de prueba en Minería.",
+      "icon": "minecraft:powered_rail",
+      "dependencies": ["mina"],
+      "resolved": false,
+      "project": "mineria"
+    }
+  ],
+  "removedIds": [],
+  "retiredKeys": []
+}

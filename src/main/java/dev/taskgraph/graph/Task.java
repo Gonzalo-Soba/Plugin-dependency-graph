@@ -68,8 +68,12 @@ public record Task(
         return new TaskKey(project, id);
     }
 
-    public Optional<String> visualParent() {
-        return dependencies.isEmpty() ? Optional.empty() : Optional.of(dependencies.getFirst());
+    /**
+     * The first dependency among {@code drawnIds}, the tasks drawn in this task's tab. Dependencies in
+     * other projects are never drawn there, so they cannot be the parent.
+     */
+    public Optional<String> visualParent(Set<String> drawnIds) {
+        return dependencies.stream().filter(drawnIds::contains).findFirst();
     }
 
     /**
@@ -81,8 +85,9 @@ public record Task(
     }
 
     /** Dependencies other than the visual parent, listed in the advancement description. */
-    public List<String> extraRequirements() {
-        return dependencies.isEmpty() ? List.of() : dependencies.subList(1, dependencies.size());
+    public List<String> extraRequirements(Set<String> drawnIds) {
+        Optional<String> parent = visualParent(drawnIds);
+        return dependencies.stream().filter(id -> !parent.equals(Optional.of(id))).toList();
     }
 
     Task withTitle(String newTitle) {

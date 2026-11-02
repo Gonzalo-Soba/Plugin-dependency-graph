@@ -1,5 +1,6 @@
 package dev.taskgraph.graph;
 
+import java.util.Comparator;
 import java.util.Objects;
 
 /**
@@ -9,10 +10,17 @@ import java.util.Objects;
  * @param project project id
  * @param task    task id
  */
-public record TaskKey(String project, String task) {
+public record TaskKey(String project, String task) implements Comparable<TaskKey> {
+
+    private static final Comparator<TaskKey> ORDER = Comparator.comparing(TaskKey::project).thenComparing(TaskKey::task);
 
     public TaskKey {
         Objects.requireNonNull(project, "project");
         Objects.requireNonNull(task, "task");
+    }
+
+    @Override
+    public int compareTo(TaskKey other) {
+        return ORDER.compare(this, other);
     }
 }
