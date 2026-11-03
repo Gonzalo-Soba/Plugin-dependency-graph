@@ -89,6 +89,19 @@ public final class TaskDialogs {
         openProjects(player, null);
     }
 
+    /**
+     * "Nueva tarea" in a project, from a shortcut (the "+ Tarea" tab or the quick access dialog). Cancel goes
+     * back to the game, where the player came from; the server can't reopen the advancements screen.
+     */
+    public void openNewTask(Player player, String projectId) {
+        openCreate(player, projectId, Player::closeInventory, null, "", "", "");
+    }
+
+    /** "Nuevo proyecto" from the "+ Proyecto" tab; cancel goes back to the game, as with {@link #openNewTask}. */
+    public void openNewProject(Player player) {
+        openCreateProject(player, Player::closeInventory, null, "");
+    }
+
     // ---- Projects ----
 
     private void openProjects(Player player, ActionResult feedback) {
@@ -108,7 +121,7 @@ public final class TaskDialogs {
                     tooltip, LIST_BUTTON_WIDTH, onClick(viewer -> openTasks(viewer, project.id(), null))));
         }
         buttons.add(button(Component.text("+ Nuevo proyecto", NamedTextColor.GOLD), null, LIST_BUTTON_WIDTH,
-                onClick(viewer -> openCreateProject(viewer, null, ""))));
+                onClick(viewer -> openCreateProject(viewer, back -> openProjects(back, null), null, ""))));
 
         show(player, Component.text("Tareas del servidor"), body, List.of(),
                 DialogType.multiAction(buttons)
@@ -120,7 +133,8 @@ public final class TaskDialogs {
                         .build());
     }
 
-    private void openCreateProject(Player player, ActionResult feedback, String title) {
+    /** @param back where «Cancelar» leads */
+    private void openCreateProject(Player player, Consumer<Player> back, ActionResult feedback, String title) {
         List<DialogBody> body = new ArrayList<>(feedback(feedback));
         body.add(text(Component.text("El proyecto tiene su propia pestaña en la pantalla de logros.", NamedTextColor.GRAY)));
 
@@ -129,12 +143,12 @@ public final class TaskDialogs {
             ActionResult result = actions.createProject(Senders.actor(viewer), newTitle);
             Optional<Project> created = result.success() ? service.findProjectByTitle(newTitle) : Optional.empty();
             if (created.isEmpty()) {
-                openCreateProject(viewer, result, newTitle);
+                openCreateProject(viewer, back, result, newTitle);
                 return;
             }
             openTasks(viewer, created.get().id(), result);
         }));
-        ActionButton cancel = actionButton("Cancelar", NamedTextColor.WHITE, onClick(viewer -> openProjects(viewer, null)));
+        ActionButton cancel = actionButton("Cancelar", NamedTextColor.WHITE, onClick(back));
 
         show(player, Component.text("Nuevo proyecto"), body, List.of(titleInput(title)), DialogType.confirmation(create, cancel));
     }
@@ -222,7 +236,7 @@ public final class TaskDialogs {
                     tooltip, LIST_BUTTON_WIDTH, onClick(viewer -> openDetail(viewer, task.id(), null))));
         }
         buttons.add(button(Component.text("+ Nueva tarea", NamedTextColor.GOLD), null, LIST_BUTTON_WIDTH,
-                onClick(viewer -> openCreate(viewer, projectId, null, "", "", ""))));
+                onClick(viewer -> openCreate(viewer, projectId, back -> openTasks(back, projectId, null), null, "", "", ""))));
         buttons.add(button(Component.text("Renombrar proyecto", NamedTextColor.WHITE), null, LIST_BUTTON_WIDTH,
                 onClick(viewer -> openRenameProject(viewer, projectId, null, project.title()))));
         boolean hide = !project.hideResolved();
@@ -319,7 +333,9 @@ public final class TaskDialogs {
 
     // ---- Create and edit ----
 
-    private void openCreate(Player player, String projectId, ActionResult feedback, String title, String description, String icon) {
+    /** @param back where «Cancelar» leads */
+    private void openCreate(Player player, String projectId, Consumer<Player> back, ActionResult feedback,
+                            String title, String description, String icon) {
         Optional<Project> project = service.project(projectId);
         if (project.isEmpty()) {
             openProjects(player, failure(TaskActions.PROJECT_GONE));
@@ -336,14 +352,14 @@ public final class TaskDialogs {
             String typedIcon = textOf(response, ICON_INPUT);
             Optional<String> chosenIcon = typedIcon.isBlank() ? Optional.of(Senders.iconInHand(viewer)) : TaskIcons.parse(typedIcon);
             if (chosenIcon.isEmpty()) {
-                openCreate(viewer, projectId, failure(TaskActions.unknownIcon(typedIcon)), newTitle, newDescription, typedIcon);
+                openCreate(viewer, projectId, back, failure(TaskActions.unknownIcon(typedIcon)), newTitle, newDescription, typedIcon);
                 return;
             }
             Actor actor = Senders.actor(viewer);
             boolean iconIsFallback = typedIcon.isBlank() && Senders.handIsEmpty(viewer);
             ActionResult created = actions.create(actor, newTitle, chosenIcon.get(), iconIsFallback, projectId);
             if (!created.success()) {
-                openCreate(viewer, projectId, created, newTitle, newDescription, typedIcon);
+                openCreate(viewer, projectId, back, created, newTitle, newDescription, typedIcon);
                 return;
             }
             ActionResult result = created;
@@ -359,10 +375,10 @@ public final class TaskDialogs {
             String typedDescription = textOf(response, DESCRIPTION_INPUT);
             String typedIcon = textOf(response, ICON_INPUT);
             iconPicker.open(viewer,
-                    key -> openCreate(viewer, projectId, null, typedTitle, typedDescription, IconKeys.display(key)),
-                    () -> openCreate(viewer, projectId, null, typedTitle, typedDescription, typedIcon));
+                    key -> openCreate(viewer, projectId, back, null, typedTitle, typedDescription, IconKeys.display(key)),
+                    () -> openCreate(viewer, projectId, back, null, typedTitle, typedDescription, typedIcon));
         }));
-        ActionButton cancel = actionButton("Cancelar", NamedTextColor.WHITE, onClick(viewer -> openTasks(viewer, projectId, null)));
+        ActionButton cancel = actionButton("Cancelar", NamedTextColor.WHITE, onClick(back));
 
         List<DialogInput> inputs = new ArrayList<>(formInputs(title, description));
         inputs.add(iconInput(Component.text("Ícono (opcional)"), icon));

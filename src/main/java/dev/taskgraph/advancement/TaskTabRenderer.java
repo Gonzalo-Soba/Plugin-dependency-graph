@@ -50,9 +50,20 @@ public final class TaskTabRenderer {
     private static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.legacySection();
 
     private final UltimateAdvancementAPI api;
+    private final boolean newTabs;
 
-    public TaskTabRenderer(UltimateAdvancementAPI api) {
+    /** @param newTabs whether to add the "+ Tarea" and "+ Proyecto" tabs, which need PacketEvents */
+    public TaskTabRenderer(UltimateAdvancementAPI api, boolean newTabs) {
         this.api = api;
+        this.newTabs = newTabs;
+    }
+
+    /**
+     * Id the client gives the tab with this namespace. UAAPI puts an internal root above ours, under its
+     * reserved key prefix, and that one names the tab: {@code namespace:_-uaapi-internal-_root}.
+     */
+    public static String tabId(String namespace) {
+        return namespace + ":" + AdvancementKey.RESERVED_KEY_PREFIX + ROOT_KEY;
     }
 
     public static AdvancementKey taskKey(TaskKey key) {
@@ -66,7 +77,26 @@ public final class TaskTabRenderer {
         for (Project project : graph.projects()) {
             tabs.put(project.id(), renderProject(graph, project));
         }
+        if (newTabs) {
+            // Always after the projects, so they stay the last two tabs.
+            renderNewTab(TabNamespaces.NEW_TASK, Material.LIME_DYE, "+ Tarea",
+                    "Abrí esta pestaña para crear una tarea en el proyecto que estabas mirando.");
+            renderNewTab(TabNamespaces.NEW_PROJECT, Material.LIME_BUNDLE, "+ Proyecto",
+                    "Abrí esta pestaña para crear un proyecto nuevo.");
+        }
         return tabs;
+    }
+
+    /** A tab with only its root: opening it is the action, handled by NewTabListener. */
+    private void renderNewTab(String namespace, Material icon, String title, String description) {
+        AdvancementTab tab = api.createAdvancementTab(namespace, BACKGROUND_TEXTURE);
+        AdvancementDisplay display = new AdvancementDisplayBuilder(new ItemStack(icon), legacy(Component.text(title, NamedTextColor.GREEN)))
+                .description(legacy(Component.text(description, NamedTextColor.GRAY)))
+                .coords(0, 0)
+                .build();
+        tab.registerAdvancements(new RootAdvancement(tab, ROOT_KEY, display), new HashSet<>());
+        tab.automaticallyShowToPlayers();
+        tab.automaticallyGrantRootAdvancement();
     }
 
     private AdvancementTab renderProject(TaskGraph graph, Project project) {
@@ -76,7 +106,7 @@ public final class TaskTabRenderer {
         // Hidden tasks aren't registered; the synchronizer keeps their progress straight in the database.
         Set<String> drawnIds = graph.visibleTasksIn(project.id()).stream().map(Task::id).collect(Collectors.toSet());
         Map<String, NodePosition> positions = GraphLayout.compute(graph, drawnIds);
-        RootAdvancement root = new RootAdvancement(tab, ROOT_KEY, rootDisplay(project, tasks, tasks.size() - drawnIds.size()));
+        RootAdvancement root = new RootAdvancement(tab, ROOT_KEY, rootDisplay(project, tasks, tasks.size() - drawnIds.size(), newTabs));
         Map<String, BaseAdvancement> advancements = new HashMap<>();
         // Topological order guarantees every parent is built before its children.
         for (Task task : graph.topologicalOrder()) {
@@ -101,13 +131,16 @@ public final class TaskTabRenderer {
         return tab;
     }
 
-    private static AdvancementDisplay rootDisplay(Project project, List<Task> tasks, int hidden) {
+    private static AdvancementDisplay rootDisplay(Project project, List<Task> tasks, int hidden, boolean newTabs) {
         long resolved = tasks.stream().filter(Task::resolved).count();
         List<Component> lines = new ArrayList<>();
         lines.add(Component.text(resolved + " de " + tasks.size() + " tareas resueltas", NamedTextColor.GRAY));
         if (hidden > 0) {
             lines.add(Component.text(hidden == 1 ? "1 resuelta oculta" : hidden + " resueltas ocultas", NamedTextColor.DARK_GRAY));
         }
+        lines.add(Component.text(newTabs
+                ? "Nueva tarea acá: pestaña «+ Tarea»."
+                : "Nueva tarea: /tareas o la tecla G.", NamedTextColor.DARK_GRAY));
         return new AdvancementDisplayBuilder(new ItemStack(ROOT_ICON), legacy(Component.text(project.title(), NamedTextColor.GOLD)))
                 .description(lines.stream().map(TaskTabRenderer::legacy).toArray(String[]::new))
                 .goalFrame()
