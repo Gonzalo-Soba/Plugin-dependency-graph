@@ -3,6 +3,10 @@ package dev.taskgraph.storage;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonParseException;
+import com.google.gson.TypeAdapter;
+import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonToken;
+import com.google.gson.stream.JsonWriter;
 import dev.taskgraph.graph.Project;
 import dev.taskgraph.graph.Task;
 import dev.taskgraph.graph.TaskGraph;
@@ -17,6 +21,8 @@ import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.logging.Logger;
 
@@ -34,6 +40,7 @@ public final class JsonTaskStore {
     private static final Gson GSON = new GsonBuilder()
             .setPrettyPrinting()
             .disableHtmlEscaping()
+            .registerTypeAdapter(Instant.class, new InstantAdapter().nullSafe())
             .create();
 
     private final Path file;
@@ -129,6 +136,28 @@ public final class JsonTaskStore {
 
     private static <T> List<T> orEmpty(List<T> list) {
         return list == null ? List.of() : list;
+    }
+
+    /** ISO-8601 in UTC, e.g. {@code 2026-11-03T18:20:00Z}. Gson cannot reach into {@code java.time} by reflection. */
+    private static final class InstantAdapter extends TypeAdapter<Instant> {
+
+        @Override
+        public void write(JsonWriter out, Instant value) throws IOException {
+            out.value(value.toString());
+        }
+
+        @Override
+        public Instant read(JsonReader in) throws IOException {
+            if (in.peek() != JsonToken.STRING) {
+                throw new JsonParseException("Expected a date string at " + in.getPath());
+            }
+            String text = in.nextString();
+            try {
+                return Instant.parse(text);
+            } catch (DateTimeParseException exception) {
+                throw new JsonParseException("Invalid date " + text + " at " + in.getPath(), exception);
+            }
+        }
     }
 
     private record StoredGraph(int version, List<Project> projects, List<Task> tasks, List<String> removedIds,

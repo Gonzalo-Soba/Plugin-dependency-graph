@@ -6,6 +6,8 @@ import dev.taskgraph.graph.TaskGraph;
 import dev.taskgraph.graph.TaskSize;
 import dev.taskgraph.graph.TaskStatus;
 
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -15,7 +17,24 @@ import java.util.Set;
  */
 public final class TaskTexts {
 
+    private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
     private TaskTexts() {
+    }
+
+    /**
+     * "Resuelta por Steve el 03/11/2026", leaving out whatever wasn't recorded ("Resuelta el 03/11/2026" for
+     * the console); empty for unresolved tasks and for those resolved before this was recorded.
+     *
+     * @param zone time zone the date is shown in
+     */
+    public static Optional<String> resolution(Task task, ZoneId zone) {
+        if (task.resolvedBy() == null && task.resolvedAt() == null) {
+            return Optional.empty();
+        }
+        return Optional.of("Resuelta"
+                + task.resolvedByOptional().map(by -> " por " + by.name()).orElse("")
+                + task.resolvedAtOptional().map(at -> " el " + DATE.format(at.atZone(zone))).orElse(""));
     }
 
     /** "✔ Madera, ✘ Piedra", or "nada" when empty. Ids that no longer exist are shown as is. */

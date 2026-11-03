@@ -7,6 +7,7 @@ import dev.taskgraph.graph.TaskGraph;
 import dev.taskgraph.graph.TaskSize;
 import dev.taskgraph.storage.JsonTaskStore;
 
+import java.time.Clock;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
@@ -22,6 +23,7 @@ public final class TaskService {
 
     private final JsonTaskStore store;
     private final Consumer<TaskGraph> onChange;
+    private final Clock clock;
 
     private TaskGraph graph;
 
@@ -30,9 +32,15 @@ public final class TaskService {
      *                 it gets is never modified afterwards: each change replaces it with a new instance.
      */
     public TaskService(JsonTaskStore store, TaskGraph graph, Consumer<TaskGraph> onChange) {
+        this(store, graph, onChange, Clock.systemUTC());
+    }
+
+    /** @param clock when tasks are resolved */
+    public TaskService(JsonTaskStore store, TaskGraph graph, Consumer<TaskGraph> onChange, Clock clock) {
         this.store = store;
         this.graph = graph;
         this.onChange = onChange;
+        this.clock = clock;
     }
 
     /** Publishes the loaded graph, e.g. to build the tab and sync players already online after a reload. */
@@ -133,8 +141,9 @@ public final class TaskService {
         return apply(next -> next.unassign(id));
     }
 
-    public Task resolve(String id) {
-        return apply(next -> next.resolve(id));
+    /** @param by player who resolves it, or {@code null} for the console */
+    public Task resolve(String id, PlayerRef by) {
+        return apply(next -> next.resolve(id, by, clock.instant()));
     }
 
     public Task remove(String id) {

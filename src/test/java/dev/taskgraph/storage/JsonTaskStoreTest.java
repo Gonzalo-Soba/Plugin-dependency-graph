@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -118,6 +119,40 @@ class JsonTaskStoreTest {
         String json = Files.readString(file, StandardCharsets.UTF_8);
         assertTrue(json.contains("\"version\": 2"));
         assertTrue(json.contains("ñandú, ají"));
+    }
+
+    @Test
+    void roundTripKeepsWhoResolvedAndWhenAndOldTasksHaveNeither() throws IOException {
+        TaskGraph original = sampleGraph();
+        PlayerRef steve = new PlayerRef(UUID.fromString("0f8fad5b-d9cb-469f-a165-70867728950e"), "Steve");
+        Instant at = Instant.parse("2026-11-03T18:20:00Z");
+        Task stone = original.findByTitle("Picar piedra").orElseThrow();
+        original.resolve(stone.id(), steve, at);
+
+        store.save(original);
+
+        assertTrue(Files.readString(file, StandardCharsets.UTF_8).contains("\"resolvedAt\": \"2026-11-03T18:20:00Z\""));
+        Task loaded = store.load().get(stone.id()).orElseThrow();
+        assertEquals(steve, loaded.resolvedBy());
+        assertEquals(at, loaded.resolvedAt());
+
+        Files.writeString(file, """
+                {"version": 2, "tasks": [{"id": "a", "title": "A", "icon": "minecraft:stone", "resolved": true}]}
+                """);
+        Task old = store.load().get("a").orElseThrow();
+        assertTrue(old.resolved());
+        assertTrue(old.resolvedByOptional().isEmpty());
+        assertTrue(old.resolvedAtOptional().isEmpty());
+    }
+
+    @Test
+    void rejectsAnInvalidResolutionDate() throws IOException {
+        Files.writeString(file, """
+                {"version": 2, "tasks": [{"id": "a", "title": "A", "icon": "minecraft:stone", "resolved": true,
+                  "resolvedAt": "ayer"}]}
+                """);
+
+        assertThrows(TaskStoreException.class, store::load);
     }
 
     @Test

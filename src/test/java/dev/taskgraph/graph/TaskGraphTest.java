@@ -8,6 +8,7 @@ import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -486,6 +487,31 @@ class TaskGraphTest {
             graph.resolve("a");
 
             assertRejected(Reason.ALREADY_RESOLVED, () -> graph.resolve("a"));
+        }
+
+        @Test
+        void recordsWhoAndWhenAndKeepsItThroughEdits() {
+            createAll("a");
+            PlayerRef steve = new PlayerRef(UUID.randomUUID(), "Steve");
+            Instant at = Instant.parse("2026-11-03T18:20:00Z");
+
+            graph.resolve("a", steve, at);
+            graph.rename("a", "Madera");
+            graph.setSize("a", TaskSize.LARGE);
+
+            Task task = graph.get("a").orElseThrow();
+            assertEquals(steve, task.resolvedBy());
+            assertEquals(at, task.resolvedAt());
+        }
+
+        @Test
+        void anUnresolvedTaskHasNoResolution() {
+            PlayerRef steve = new PlayerRef(UUID.randomUUID(), "Steve");
+            Task task = new Task("a", "A", "", ICON, List.of(), null, false, null, null, null,
+                    steve, Instant.parse("2026-11-03T18:20:00Z"));
+
+            assertTrue(task.resolvedByOptional().isEmpty());
+            assertTrue(task.resolvedAtOptional().isEmpty());
         }
     }
 

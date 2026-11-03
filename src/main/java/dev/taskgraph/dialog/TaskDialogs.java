@@ -36,6 +36,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 
 import java.time.Duration;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -279,14 +280,17 @@ public final class TaskDialogs {
                 ? Component.text("Sin descripción.", NamedTextColor.DARK_GRAY)
                 : Component.text(task.description(), NamedTextColor.GRAY);
         body.add(DialogBody.item(TaskIcons.of(task.icon())).description(DialogBody.plainMessage(description)).build());
-        body.add(text(Component.join(JoinConfiguration.newlines(),
+        List<Component> info = new ArrayList<>(List.of(
                 Component.text("Estado: " + TaskTexts.status(status), color(status)),
                 Component.text("Proyecto: " + projectTitle(graph, task.project()), NamedTextColor.GRAY),
                 Component.text("Tamaño: " + TaskTexts.size(task.size()), NamedTextColor.GRAY),
                 Component.text("Creada por: " + task.creatorOptional().map(PlayerRef::name).orElse("desconocido"), NamedTextColor.GRAY),
                 Component.text("Asignada a: " + task.assigneeOptional().map(PlayerRef::name).orElse("nadie"), NamedTextColor.AQUA),
                 Component.text("Depende de: " + TaskTexts.taskList(graph, task.dependencies()), NamedTextColor.GRAY),
-                Component.text("La necesitan: " + TaskTexts.taskList(graph, graph.dependents(taskId)), NamedTextColor.GRAY))));
+                Component.text("La necesitan: " + TaskTexts.taskList(graph, graph.dependents(taskId)), NamedTextColor.GRAY)));
+        TaskTexts.resolution(task, ZoneId.systemDefault())
+                .ifPresent(line -> info.add(1, Component.text(line, NamedTextColor.GREEN)));
+        body.add(text(Component.join(JoinConfiguration.newlines(), info)));
 
         List<ActionButton> buttons = new ArrayList<>();
         boolean assignedToActor = actor.uuid() != null && task.assigneeOptional().filter(ref -> ref.is(actor.uuid())).isPresent();
