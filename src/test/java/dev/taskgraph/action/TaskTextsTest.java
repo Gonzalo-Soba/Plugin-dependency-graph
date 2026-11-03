@@ -61,6 +61,25 @@ class TaskTextsTest {
     }
 
     @Test
+    void unlockedNamesOneTask() {
+        TaskGraph graph = new TaskGraph();
+        Task oven = graph.create("Horno", "minecraft:furnace");
+
+        assertEquals("▶ Ahora se puede hacer: \"Horno\".", TaskTexts.unlocked(graph, List.of(oven)));
+    }
+
+    @Test
+    void unlockedNamesSeveralAndTheirProjectOutsideGeneral() {
+        TaskGraph graph = new TaskGraph();
+        Project mining = graph.createProject("Minería");
+        Task oven = graph.create("Horno", "minecraft:furnace");
+        Task pickaxe = graph.create("Pico de hierro", "minecraft:iron_pickaxe", null, mining.id());
+
+        assertEquals("▶ Ahora se pueden hacer: \"Horno\", \"Pico de hierro\" (en Minería).",
+                TaskTexts.unlocked(graph, List.of(oven, pickaxe)));
+    }
+
+    @Test
     void sizesAreCapitalized() {
         assertEquals("Chica", TaskTexts.size(TaskSize.SMALL));
         assertEquals("Mediana", TaskTexts.size(TaskSize.MEDIUM));

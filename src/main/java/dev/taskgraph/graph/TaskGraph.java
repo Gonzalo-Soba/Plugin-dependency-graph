@@ -443,6 +443,17 @@ public final class TaskGraph {
     }
 
     /**
+     * Tasks that were blocked in {@code before} and are available now, in creation order: what a change
+     * unlocked. New tasks don't count, even if they are available.
+     */
+    public List<Task> unlockedSince(TaskGraph before) {
+        return tasks.values().stream()
+                .filter(task -> status(task.id()) == TaskStatus.AVAILABLE)
+                .filter(task -> before.get(task.id()).isPresent() && before.status(task.id()) == TaskStatus.BLOCKED)
+                .toList();
+    }
+
+    /**
      * Tasks for the task list: available first, then blocked, then resolved; alphabetical by title inside
      * each group, so a task is easy to find in a long list.
      */

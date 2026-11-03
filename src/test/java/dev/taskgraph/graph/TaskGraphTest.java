@@ -183,6 +183,69 @@ class TaskGraphTest {
     }
 
     @Nested
+    class Unlocking {
+
+        @Test
+        void resolvingTheLastPendingDependencyUnlocksTheTask() {
+            createAll("a", "b", "c");
+            graph.addDependency("c", "a");
+            graph.addDependency("c", "b");
+            graph.resolve("a");
+            TaskGraph before = graph.copy();
+
+            graph.resolve("b");
+
+            assertEquals(List.of("c"), graph.unlockedSince(before).stream().map(Task::id).toList());
+        }
+
+        @Test
+        void taskWithAnotherPendingDependencyStaysBlocked() {
+            createAll("a", "b", "c");
+            graph.addDependency("c", "a");
+            graph.addDependency("c", "b");
+            TaskGraph before = graph.copy();
+
+            graph.resolve("a");
+
+            assertTrue(graph.unlockedSince(before).isEmpty());
+        }
+
+        @Test
+        void removingTheBlockingDependencyUnlocks() {
+            createAll("a", "b");
+            graph.addDependency("b", "a");
+            TaskGraph before = graph.copy();
+
+            graph.removeDependency("b", "a");
+
+            assertEquals(List.of("b"), graph.unlockedSince(before).stream().map(Task::id).toList());
+        }
+
+        @Test
+        void newTasksAndResolvedOnesAreNotUnlocked() {
+            createAll("a");
+            TaskGraph before = graph.copy();
+
+            graph.create("b", ICON);
+            graph.resolve("a");
+
+            assertTrue(graph.unlockedSince(before).isEmpty());
+        }
+
+        @Test
+        void severalAreListedInCreationOrder() {
+            createAll("a", "c", "b");
+            graph.addDependency("b", "a");
+            graph.addDependency("c", "a");
+            TaskGraph before = graph.copy();
+
+            graph.resolve("a");
+
+            assertEquals(List.of("c", "b"), graph.unlockedSince(before).stream().map(Task::id).toList());
+        }
+    }
+
+    @Nested
     class Sizes {
 
         @Test

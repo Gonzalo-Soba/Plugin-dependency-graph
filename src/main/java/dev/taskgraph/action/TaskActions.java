@@ -4,6 +4,7 @@ import dev.taskgraph.graph.IconKeys;
 import dev.taskgraph.graph.PlayerRef;
 import dev.taskgraph.graph.Project;
 import dev.taskgraph.graph.Task;
+import dev.taskgraph.graph.TaskGraph;
 import dev.taskgraph.graph.TaskGraphException;
 import dev.taskgraph.graph.TaskPermissions;
 import dev.taskgraph.graph.TaskPermissions.Actor;
@@ -11,6 +12,7 @@ import dev.taskgraph.graph.TaskSize;
 import dev.taskgraph.service.TaskService;
 import dev.taskgraph.storage.TaskStoreException;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -202,15 +204,15 @@ public final class TaskActions {
     }
 
     public ActionResult renameProject(Actor actor, String projectId, String newTitle) {
-        return withProject(null, projectId, project -> {
+        return run(null, () -> withProject(null, projectId, project -> {
             Project renamed = service.renameProject(project.id(), newTitle);
             return ActionResult.success(null, "El proyecto " + quoted(project.title()) + " ahora se llama " + quoted(renamed.title()) + ".");
-        });
+        }));
     }
 
     /** Open to everyone, like renaming: it only changes what the project's tab shows. */
     public ActionResult setHideResolved(Actor actor, String projectId, boolean hide) {
-        return withProject(null, projectId, project -> {
+        return run(null, () -> withProject(null, projectId, project -> {
             if (project.hideResolved() == hide) {
                 return ActionResult.success(null, quoted(project.title()) + (hide
                         ? " ya ocultaba las ramas terminadas."
@@ -220,17 +222,17 @@ public final class TaskActions {
             return hide
                     ? ActionResult.success(null, quoted(project.title()) + " ahora oculta las ramas terminadas.", HIDE_RESOLVED_NOTE)
                     : ActionResult.success(null, quoted(project.title()) + " ahora muestra todas las tareas resueltas.");
-        });
+        }));
     }
 
     public ActionResult removeProject(Actor actor, String projectId) {
-        return withProject(null, projectId, project -> {
+        return run(null, () -> withProject(null, projectId, project -> {
             if (!TaskPermissions.canRemoveProject(actor)) {
                 return ActionResult.failure(null, "Solo un admin puede borrar proyectos.");
             }
             service.removeProject(project.id());
             return ActionResult.success(null, "Proyecto " + quoted(project.title()) + " borrado.");
-        });
+        }));
     }
 
     public ActionResult remove(Actor actor, String taskId) {
@@ -253,13 +255,15 @@ public final class TaskActions {
         return run(task.get(), () -> action.apply(task.get()));
     }
 
-    /** @param task reported with the result when the project no longer exists, may be {@code null} */
+    /**
+     * Must run inside {@link #run}, like {@link #withOther}.
+     *
+     * @param task reported with the result when the project no longer exists, may be {@code null}
+     */
     private ActionResult withProject(Task task, String projectId, Function<Project, ActionResult> action) {
-        Optional<Project> project = service.project(projectId);
-        if (project.isEmpty()) {
-            return ActionResult.failure(task, PROJECT_GONE);
-        }
-        return run(task, () -> action.apply(project.get()));
+        return service.project(projectId)
+                .map(action)
+                .orElseGet(() -> ActionResult.failure(task, PROJECT_GONE));
     }
 
     private ActionResult withOther(Task task, String otherId, Function<Task, ActionResult> action) {
@@ -268,15 +272,33 @@ public final class TaskActions {
                 .orElseGet(() -> ActionResult.failure(task, "Esa tarea ya no existe."));
     }
 
-    /** Turns graph rejections and save failures into failed results; {@code task} is reported with them. */
+    /**
+     * Runs one action: turns graph rejections and save failures into failed results ({@code task} is
+     * reported with them), and after a change announces the tasks it unlocked. Every public action goes
+     * through here exactly once, so nothing is announced twice.
+     */
     private ActionResult run(Task task, Supplier<ActionResult> action) {
+        TaskGraph before = service.snapshot();
         try {
-            return action.get();
+            ActionResult result = action.get();
+            if (result.success()) {
+                announceUnlocked(before);
+            }
+            return result;
         } catch (TaskGraphException exception) {
             return ActionResult.failure(task, RejectionMessages.of(exception, this::titleOf, this::projectTitleOf));
         } catch (TaskStoreException exception) {
             logger.log(Level.SEVERE, "Could not save tasks", exception);
             return ActionResult.failure(task, "No se pudo guardar el cambio. Revisá el log del servidor.");
+        }
+    }
+
+    /** After the action's own announcement (resolving announces first), so the order reads naturally. */
+    private void announceUnlocked(TaskGraph before) {
+        TaskGraph after = service.snapshot();
+        List<Task> unlocked = after.unlockedSince(before);
+        if (!unlocked.isEmpty()) {
+            announcer.accept(TaskTexts.unlocked(after, unlocked));
         }
     }
 
