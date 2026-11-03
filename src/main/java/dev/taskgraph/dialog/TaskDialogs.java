@@ -12,6 +12,7 @@ import dev.taskgraph.graph.Task;
 import dev.taskgraph.graph.TaskGraph;
 import dev.taskgraph.graph.TaskPermissions;
 import dev.taskgraph.graph.TaskPermissions.Actor;
+import dev.taskgraph.graph.TaskSize;
 import dev.taskgraph.graph.TaskStatus;
 import dev.taskgraph.graph.Titles;
 import dev.taskgraph.service.TaskService;
@@ -36,6 +37,7 @@ import org.bukkit.plugin.Plugin;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -63,6 +65,7 @@ public final class TaskDialogs {
     private static final String DESCRIPTION_INPUT = "descripcion";
     private static final String TASK_INPUT = "tarea";
     private static final String PROJECT_INPUT = "proyecto";
+    private static final String SIZE_INPUT = "tamano";
     private static final String ICON_INPUT = "icono";
     private static final int TITLE_MAX_LENGTH = 64;
     private static final int DESCRIPTION_MAX_LENGTH = 512;
@@ -279,6 +282,7 @@ public final class TaskDialogs {
         body.add(text(Component.join(JoinConfiguration.newlines(),
                 Component.text("Estado: " + TaskTexts.status(status), color(status)),
                 Component.text("Proyecto: " + projectTitle(graph, task.project()), NamedTextColor.GRAY),
+                Component.text("Tamaño: " + TaskTexts.size(task.size()), NamedTextColor.GRAY),
                 Component.text("Creada por: " + task.creatorOptional().map(PlayerRef::name).orElse("desconocido"), NamedTextColor.GRAY),
                 Component.text("Asignada a: " + task.assigneeOptional().map(PlayerRef::name).orElse("nadie"), NamedTextColor.AQUA),
                 Component.text("Depende de: " + TaskTexts.taskList(graph, task.dependencies()), NamedTextColor.GRAY),
@@ -316,6 +320,7 @@ public final class TaskDialogs {
                 onClick(viewer -> openEdit(viewer, taskId, null, task.title(), task.description()))));
         buttons.add(actionButton("Cambiar ícono", NamedTextColor.WHITE,
                 onClick(viewer -> openIcon(viewer, taskId, null, IconKeys.display(task.icon())))));
+        buttons.add(actionButton("Cambiar tamaño", NamedTextColor.WHITE, onClick(viewer -> openSize(viewer, taskId))));
         if (graph.projects().size() > 1) {
             buttons.add(actionButton("Mover a otro proyecto", NamedTextColor.WHITE, onClick(viewer -> openMove(viewer, taskId))));
         }
@@ -490,6 +495,37 @@ public final class TaskDialogs {
 
         show(player, Component.text("Ícono de " + task.get().title()), body,
                 List.of(iconInput(Component.text("Ítem"), typed)), formWithPicker(save, pick, cancel));
+    }
+
+    // ---- Size ----
+
+    private void openSize(Player player, String taskId) {
+        Optional<Task> task = service.task(taskId);
+        if (task.isEmpty()) {
+            openProjects(player, failure(TASK_GONE));
+            return;
+        }
+        List<SingleOptionDialogInput.OptionEntry> entries = new ArrayList<>();
+        for (TaskSize size : TaskSize.values()) {
+            entries.add(SingleOptionDialogInput.OptionEntry.create(size.name(), Component.text(TaskTexts.size(size)),
+                    size == task.get().size()));
+        }
+        List<DialogBody> body = List.of(text(Component.text(
+                "En la pestaña de logros, cada tamaño tiene su marco: chica, el común; mediana, redondeado; grande, con puntas.",
+                NamedTextColor.GRAY)));
+
+        ActionButton save = actionButton("Guardar", NamedTextColor.GREEN, onSubmit((viewer, response) -> {
+            String chosen = textOf(response, SIZE_INPUT);
+            Optional<TaskSize> size = Arrays.stream(TaskSize.values()).filter(value -> value.name().equals(chosen)).findFirst();
+            openDetail(viewer, taskId, size.isEmpty()
+                    ? failure(TaskActions.unknownSize(chosen))
+                    : actions.changeSize(Senders.actor(viewer), taskId, size.get()));
+        }));
+        ActionButton back = actionButton("Volver", NamedTextColor.WHITE, onClick(viewer -> openDetail(viewer, taskId, null)));
+
+        show(player, Component.text("Tamaño de " + task.get().title()), body,
+                List.of(DialogInput.singleOption(SIZE_INPUT, Component.text("Tamaño"), entries).width(300).build()),
+                DialogType.confirmation(save, back));
     }
 
     // ---- Dependencies ----

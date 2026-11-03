@@ -3,6 +3,7 @@ package dev.taskgraph.action;
 import dev.taskgraph.graph.Project;
 import dev.taskgraph.graph.Task;
 import dev.taskgraph.graph.TaskGraph;
+import dev.taskgraph.graph.TaskSize;
 import dev.taskgraph.graph.TaskStatus;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -57,6 +58,13 @@ class TaskTextsTest {
         Task updated = graph.addDependency(table.id(), wood.id());
 
         assertTrue(TaskTexts.alsoRequires(graph, updated, Set.of(wood.id(), table.id())).isEmpty());
+    }
+
+    @Test
+    void sizesAreCapitalized() {
+        assertEquals("Chica", TaskTexts.size(TaskSize.SMALL));
+        assertEquals("Mediana", TaskTexts.size(TaskSize.MEDIUM));
+        assertEquals("Grande", TaskTexts.size(TaskSize.LARGE));
     }
 
     @ParameterizedTest

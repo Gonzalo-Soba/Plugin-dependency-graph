@@ -6,6 +6,7 @@ import dev.taskgraph.graph.Task;
 import dev.taskgraph.graph.TaskGraph;
 import dev.taskgraph.graph.TaskGraphException;
 import dev.taskgraph.graph.TaskKey;
+import dev.taskgraph.graph.TaskSize;
 import dev.taskgraph.graph.TaskStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -117,6 +118,22 @@ class JsonTaskStoreTest {
         String json = Files.readString(file, StandardCharsets.UTF_8);
         assertTrue(json.contains("\"version\": 2"));
         assertTrue(json.contains("ñandú, ají"));
+    }
+
+    @Test
+    void roundTripKeepsSizesAndMissingSizeIsSmall() throws IOException {
+        TaskGraph original = sampleGraph();
+        Task big = original.create("Castillo", "minecraft:stone_bricks");
+        original.setSize(big.id(), TaskSize.LARGE);
+
+        store.save(original);
+
+        assertEquals(TaskSize.LARGE, store.load().get(big.id()).orElseThrow().size());
+
+        Files.writeString(file, """
+                {"version": 2, "tasks": [{"id": "a", "title": "A", "icon": "minecraft:stone"}]}
+                """);
+        assertEquals(TaskSize.SMALL, store.load().get("a").orElseThrow().size());
     }
 
     @Test

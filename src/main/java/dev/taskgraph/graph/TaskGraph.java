@@ -212,6 +212,11 @@ public final class TaskGraph {
     }
 
     /** @param icon namespaced material key, e.g. {@code minecraft:diamond} */
+    public Task setSize(String id, TaskSize size) {
+        Objects.requireNonNull(size, "size");
+        return replace(require(id).withSize(size));
+    }
+
     public Task setIcon(String id, String icon) {
         Objects.requireNonNull(icon, "icon");
         return replace(require(id).withIcon(icon));

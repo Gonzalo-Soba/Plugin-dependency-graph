@@ -183,6 +183,38 @@ class TaskGraphTest {
     }
 
     @Nested
+    class Sizes {
+
+        @Test
+        void newTasksAreSmall() {
+            assertEquals(TaskSize.SMALL, graph.create("a", ICON).size());
+        }
+
+        @Test
+        void sizeChangesAndKeepsTheRest() {
+            createAll("a", "b");
+            graph.addDependency("b", "a");
+            graph.resolve("a");
+
+            Task large = graph.setSize("b", TaskSize.LARGE);
+
+            assertEquals(TaskSize.LARGE, large.size());
+            assertEquals(List.of("a"), large.dependencies());
+            assertEquals(TaskSize.LARGE, graph.get("b").orElseThrow().size());
+        }
+
+        @Test
+        void missingSizeIsSmall() {
+            assertEquals(TaskSize.SMALL, new Task("a", "A", "", ICON, List.of(), null, false, null, null, null).size());
+        }
+
+        @Test
+        void unknownTaskIsRejected() {
+            assertRejected(Reason.NOT_FOUND, () -> graph.setSize("ghost", TaskSize.MEDIUM));
+        }
+    }
+
+    @Nested
     class Dependencies {
 
         @Test

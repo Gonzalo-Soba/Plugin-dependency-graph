@@ -2,6 +2,7 @@ package dev.taskgraph.command;
 
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.builder.RequiredArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
@@ -16,6 +17,7 @@ import dev.taskgraph.graph.Project;
 import dev.taskgraph.graph.Task;
 import dev.taskgraph.graph.TaskGraph;
 import dev.taskgraph.graph.TaskPermissions.Actor;
+import dev.taskgraph.graph.TaskSize;
 import dev.taskgraph.graph.Titles;
 import dev.taskgraph.service.TaskService;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
@@ -50,6 +52,7 @@ public final class TaskCommand {
     private static final String TEXT = "texto";
     private static final String ITEM = "item";
     private static final String PROJECT = "proyecto";
+    private static final String SIZE = "tamano";
 
     private final TaskService service;
     private final TaskActions actions;
@@ -78,6 +81,8 @@ public final class TaskCommand {
                         .then(quotedTask(TASK)
                                 .then(Commands.argument(ITEM, ArgumentTypes.itemStack())
                                         .executes(this::changeIcon))))
+                .then(sizeCommand("tamaño"))
+                .then(sizeCommand("tamano"))
                 .then(Commands.literal("depende")
                         .then(quotedTask(TASK)
                                 .then(lastTask(DEPENDENCY).executes(this::addDependency))))
@@ -117,6 +122,23 @@ public final class TaskCommand {
                         .then(Commands.literal("borrar")
                                 .then(lastProject(PROJECT).executes(this::removeProject))))
                 .build();
+    }
+
+    /** {@code tamaño} and its alias {@code tamano}, for keyboards without ñ. */
+    private LiteralArgumentBuilder<CommandSourceStack> sizeCommand(String name) {
+        return Commands.literal(name)
+                .then(quotedTask(TASK)
+                        .then(Commands.argument(SIZE, StringArgumentType.greedyString())
+                                .suggests((context, builder) -> {
+                                    String typed = Titles.key(builder.getRemaining());
+                                    for (TaskSize size : TaskSize.values()) {
+                                        if (size.word().startsWith(typed)) {
+                                            builder.suggest(size.word());
+                                        }
+                                    }
+                                    return builder.buildFuture();
+                                })
+                                .executes(this::changeSize)));
     }
 
     /** Task title that is followed by more arguments, so titles with spaces or accents need quotes. */
@@ -185,6 +207,7 @@ public final class TaskCommand {
                 "renombrar \"<título>\" <nuevo título>",
                 "desc \"<título>\" <texto>",
                 "icono \"<título>\" <ítem> — Tab sugiere los ítems",
+                "tamaño \"<título>\" <chica|mediana|grande> — también tamano",
                 "depende \"<título>\" <dependencia>",
                 "quitardep \"<título>\" <dependencia>",
                 "asignar <título>",
@@ -235,6 +258,15 @@ public final class TaskCommand {
         return withTask(context, TASK, (actor, task) -> actions.changeIcon(actor, task.id(), key));
     }
 
+    private int changeSize(CommandContext<CommandSourceStack> context) {
+        String typed = StringArgumentType.getString(context, SIZE);
+        Optional<TaskSize> size = TaskSize.parse(typed);
+        if (size.isEmpty()) {
+            return fail(context.getSource().getSender(), TaskActions.unknownSize(typed));
+        }
+        return withTask(context, TASK, (actor, task) -> actions.changeSize(actor, task.id(), size.get()));
+    }
+
     private int addDependency(CommandContext<CommandSourceStack> context) {
         return withTask(context, TASK, (actor, task) -> {
             Optional<Task> dependency = lookup(context, DEPENDENCY);
@@ -283,6 +315,7 @@ public final class TaskCommand {
         }
         sender.sendMessage(Component.text("Proyecto: "
                 + graph.project(task.project()).map(Project::title).orElse(task.project()), NamedTextColor.GRAY));
+        sender.sendMessage(Component.text("Tamaño: " + TaskTexts.size(task.size()), NamedTextColor.GRAY));
         sender.sendMessage(Component.text("Estado: " + (task.resolved() ? "resuelta" : "pendiente"),
                 task.resolved() ? NamedTextColor.GREEN : NamedTextColor.YELLOW));
         sender.sendMessage(Component.text("Creada por: "

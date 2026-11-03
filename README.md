@@ -8,6 +8,7 @@ Plugin de Paper para organizar las tareas comunales de un servidor de Minecraft.
 
 - Cada proyecto es una pestaña de la pantalla de logros, y cada tarea es un logro en la pestaña de su proyecto. Las tareas sin proyecto están en "General", que es siempre la primera pestaña. El logro raíz de cada pestaña muestra el nombre del proyecto y cuántas de sus tareas están resueltas.
 - Las tareas sin dependencias en su proyecto cuelgan del logro raíz. Cada dependencia del mismo proyecto es una línea que une la tarea con lo que requiere. Las dependencias que no son la primera también aparecen en la descripción como "También requiere: ...", y las de otro proyecto dicen cuál, por ejemplo "Picar piedra (en General)".
+- **Tamaños:** cada tarea es chica, mediana o grande, y el marco del logro lo muestra: chica con el marco común, mediana con el redondeado (como los "objetivos" vanilla) y grande con el de puntas (como los "desafíos"). Las tareas nuevas, y las de versiones anteriores, son chicas.
 - Las columnas indican la profundidad: todo lo que una tarea requiere queda a su izquierda.
 - Cada tarea se ubica a la altura de sus dependencias, en lugar de ir al final de la columna. Los grupos de tareas que no se conectan entre sí se dibujan en bloques separados, uno debajo del otro, con una fila vacía en medio.
 - **Ocultar resueltas**, una opción de cada proyecto: saca de su pestaña las ramas terminadas, es decir, las tareas resueltas de las que ya no depende nada pendiente (en ningún proyecto). Una tarea resuelta que todavía desbloquea algo pendiente sigue a la vista. El raíz dice cuántas hay ocultas, y al volver a mostrarlas aparecen completadas, sin toasts.
@@ -112,6 +113,7 @@ Jugadores: **A** y **B**.
   - "+ Proyecto" abre "Nuevo proyecto"; el proyecto creado aparece antes de "+ Tarea", que siguen siendo las dos últimas.
   - Tecla G → «Nueva tarea»: abre en el proyecto de la última pestaña mirada.
 - [ ] **Sin PacketEvents.** `./gradlew runServer -PnoPacketEvents`; el log dice `PacketEvents not found` y no hay `NoClassDefFoundError`. No hay pestañas "+" y el raíz dice "Nueva tarea: /tareas o la tecla G.". Tecla G → «Nueva tarea» abre "Nueva tarea en General". `/tareas`, crear, resolver, el selector de íconos y `/tarea proyecto ocultar` funcionan igual.
+- [ ] **Tamaños.** `/tarea tamaño Pozo grande` y `/tarea tamano Muralla mediana`: en la pestaña, Pozo tiene el marco con puntas y Muralla el redondeado; las demás, el común. Tab sugiere chica, mediana y grande; `/tarea tamaño Pozo enorme` se rechaza explicando las opciones y repetir el mismo tamaño dice "ya era". `/tarea info Pozo` dice "Tamaño: Grande". En la ficha, «Cambiar tamaño» muestra el actual seleccionado y «Guardar» lo cambia. Resolver una tarea grande no muestra toast ni mensaje de "desafío completado", solo el anuncio "✔". Un `tasks.json` sin `size` carga todas como chicas.
 - [ ] **Interfaz: lista con 30 tareas.** Con el servidor apagado, copiar `dev-server/samples/tasks-30.json` sobre `run/plugins/TaskGraph/tasks.json` y arrancar. `/tareas` muestra las 30, se puede desplazar hasta el final y el orden por grupos se mantiene. La pestaña de logros también se ve legible.
 - [ ] **Interfaz: crear y editar.** "Nueva tarea" con un ítem en la mano crea la tarea con ese ícono y abre su ficha. Un título repetido muestra el error y conserva lo escrito. "Editar" cambia título y descripción en un solo paso.
 - [ ] **Íconos.** `/tarea icono Madera ` y Tab sugiere ítems; `/tarea icono Madera oak_log` cambia el ícono en la pestaña y en la ficha. `/tarea icono Madera air` se rechaza. En "Nueva tarea", el ícono `DIAMOND` crea la tarea con un diamante aunque tengas otra cosa en la mano; `diamante` muestra el error y conserva lo escrito; vacío usa el ítem en la mano. "Cambiar ícono" en la ficha acepta `minecraft:oak_log`, y vacío con la mano vacía muestra el error.
@@ -130,7 +132,7 @@ Las tareas se guardan en `plugins/TaskGraph/tasks.json`. Ese archivo es la fuent
 
 Si el archivo está dañado o tiene datos inválidos (por ejemplo, un ciclo de dependencias), el plugin se desactiva al arrancar y deja el archivo intacto. Revisar el log del servidor, corregir el archivo y reiniciar.
 
-**Formato 2 (desde la 0.4.0).** El archivo guarda también los proyectos y en qué proyecto está cada tarea. Un `tasks.json` de una versión anterior (formato 1) se convierte solo al arrancar:
+**Formato 2 (desde la 0.4.0).** El archivo guarda también los proyectos, en qué proyecto está cada tarea y su tamaño (`size`: `SMALL`, `MEDIUM` o `LARGE`; si falta, es chica). Un `tasks.json` de una versión anterior (formato 1) se convierte solo al arrancar:
 - todas sus tareas pasan al proyecto General;
 - antes de convertirlo se guarda una copia del archivo original como `plugins/TaskGraph/tasks.v1.json.bak`;
 - el log muestra `Migrated tasks.json to format version 2`.
@@ -146,6 +148,7 @@ Si el archivo viejo tiene errores, no se convierte ni se toca.
 - **Nueva tarea:** se crea en el proyecto que tenés abierto. El campo «Ícono» es opcional. Acepta el id de un ítem con o sin `minecraft:` y sin distinguir mayúsculas (`diamond`, `minecraft:diamond`, `DIAMOND`). Si queda vacío, el ícono es el ítem que tenés en la mano al tocar «Crear».
 - **Elegir ícono**, en Nueva tarea y en Cambiar ícono: abre un menú de cofre con categorías (Bloques, Naturaleza, Herramientas, Combate, Comida, Redstone, Decoración, Varios) y «Todos los ítems», en orden alfabético y por páginas. Al hacer clic en un ítem volvés a la ventana con lo que ya habías escrito y el ícono elegido. Cerrar el cofre o «Cancelar» vuelve sin cambios. Los ítems del menú no se pueden sacar.
 - **Cambiar ícono**, en la ficha: el mismo campo. Vacío usa el ítem que tenés en la mano.
+- **Cambiar tamaño**, en la ficha: elegir chica, mediana o grande. La ficha muestra el tamaño actual.
 - **Agregar dependencia** solo ofrece tareas que no crearían un ciclo. Las de otro proyecto aparecen con el nombre del proyecto, por ejemplo "Madera (en General)".
 - **Mover a otro proyecto**, en la ficha: aparece cuando hay más de un proyecto. La tarea conserva dependencias, estado y asignado.
 - **Ventanas viejas:** si alguien cambia o borra una tarea mientras otra persona tiene su ficha abierta, los botones vuelven a comprobar todo al tocarse. Cada botón sirve una sola vez y vence a los 5 minutos.
@@ -178,12 +181,13 @@ Las tareas se nombran por su **título**, que es único: no distingue mayúscula
 | `/tarea renombrar "<título>" <nuevo título>` | Cambia el título. El estado, las dependencias y el progreso se conservan. |
 | `/tarea desc "<título>" <texto>` | Cambia la descripción. |
 | `/tarea icono "<título>" <ítem>` | Cambia el ícono. Tab sugiere los ítems; acepta `diamond` o `minecraft:diamond`. Se rechazan los que no sirven de ícono, como el aire. |
+| `/tarea tamaño "<título>" <chica\|mediana\|grande>` | Cambia el tamaño, que se ve como el marco del logro. También funciona como `tamano`, sin ñ. |
 | `/tarea depende "<título>" <dependencia>` | Hace que la tarea dependa de otra, de cualquier proyecto. Se rechaza si crea un ciclo. Cada dependencia del mismo proyecto se dibuja con una línea; las de otro proyecto y todas desde la segunda se listan en "También requiere". |
 | `/tarea quitardep "<título>" <dependencia>` | Quita una dependencia y su línea. Sin dependencias, la tarea vuelve a colgar del raíz. Tab sugiere solo las dependencias de esa tarea. |
 | `/tarea asignar <título>` | Te asigna la tarea. Si ya está asignada a otra persona se rechaza: esa persona la suelta o un admin la reasigna. |
 | `/tarea soltar <título>` | Quita la asignación. Solo quien la tiene asignada o un admin. |
 | `/tarea resolver <título>` | Marca la tarea como resuelta para todos. Requiere que todas sus dependencias estén resueltas. |
-| `/tarea info <título>` | Muestra proyecto, estado, quién la creó, asignado, dependencias y qué tareas la necesitan. |
+| `/tarea info <título>` | Muestra proyecto, tamaño, estado, quién la creó, asignado, dependencias y qué tareas la necesitan. |
 | `/tarea borrar <título>` | Borra la tarea. Solo quien la creó o un admin. Se rechaza si otras tareas dependen de ella. |
 | `/tarea mover "<título>" <proyecto>` | Pasa la tarea a otro proyecto (otra pestaña). Conserva dependencias, estado y asignado. |
 | `/tarea proyecto lista` | Lista los proyectos con sus tareas resueltas. `/tarea proyecto` solo hace lo mismo. |
@@ -198,7 +202,7 @@ Las tareas se nombran por su **título**, que es único: no distingue mayúscula
 |---|---|---|
 | `taskgraph.admin` | operadores | Borrar cualquier tarea, borrar proyectos, soltar tareas de otros y reasignar con `asignar` una tarea que tiene otra persona. |
 
-Todo lo demás (crear, renombrar, describir, cambiar el ícono, agregar y quitar dependencias, mover tareas, crear y renombrar proyectos, ocultar o mostrar resueltas, asignarse tareas libres, resolver y ver info) está abierto a todos los jugadores. La consola del servidor cuenta como admin. Las tareas creadas antes de que se guardara el creador solo las puede borrar un admin.
+Todo lo demás (crear, renombrar, describir, cambiar el ícono o el tamaño, agregar y quitar dependencias, mover tareas, crear y renombrar proyectos, ocultar o mostrar resueltas, asignarse tareas libres, resolver y ver info) está abierto a todos los jugadores. La consola del servidor cuenta como admin. Las tareas creadas antes de que se guardara el creador solo las puede borrar un admin.
 
 Cada cambio se guarda en el JSON y regenera la pestaña de logros para todos los jugadores online.
 
