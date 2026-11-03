@@ -287,6 +287,51 @@ class TaskActionsTest {
     class Resolve {
 
         @Test
+        void announcesWhatItUnlocksAfterTheResolution() {
+            Task wood = create(ALEX, "Madera");
+            Task table = create(ALEX, "Mesa");
+            actions.addDependency(ALEX, table.id(), wood.id());
+
+            actions.resolve(STEVE, wood.id());
+
+            assertEquals(List.of("✔ Steve resolvió la tarea \"Madera\"", "▶ Ahora se puede hacer: \"Mesa\"."), announcements);
+        }
+
+        @Test
+        void removingTheBlockingDependencyAnnouncesTheUnlock() {
+            Task wood = create(ALEX, "Madera");
+            Task table = create(ALEX, "Mesa");
+            actions.addDependency(ALEX, table.id(), wood.id());
+
+            actions.removeDependency(ALEX, table.id(), wood.id());
+
+            assertEquals(List.of("▶ Ahora se puede hacer: \"Mesa\"."), announcements);
+        }
+
+        @Test
+        void changesThatUnlockNothingAnnounceNothing() {
+            Task wood = create(ALEX, "Madera");
+            Task table = create(ALEX, "Mesa");
+            actions.addDependency(ALEX, table.id(), wood.id());
+            actions.createProject(ALEX, "Base");
+
+            actions.moveTask(ALEX, table.id(), service.findProjectByTitle("Base").orElseThrow().id());
+            actions.describe(ALEX, table.id(), "De roble");
+
+            assertTrue(announcements.isEmpty());
+        }
+
+        @Test
+        void rejectedResolutionAnnouncesNothing() {
+            Task wood = create(ALEX, "Madera");
+            Task table = create(ALEX, "Mesa");
+            actions.addDependency(ALEX, table.id(), wood.id());
+
+            assertFalse(actions.resolve(ALEX, table.id()).success());
+            assertTrue(announcements.isEmpty());
+        }
+
+        @Test
         void announcesToEveryoneInsteadOfReplying() {
             Task task = create(ALEX, "Mesa");
 

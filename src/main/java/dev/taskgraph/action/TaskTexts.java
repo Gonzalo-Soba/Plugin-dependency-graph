@@ -55,6 +55,20 @@ public final class TaskTexts {
         return dependency.title() + " (en " + project + ")";
     }
 
+    /**
+     * Announcement for tasks a change unlocked: "▶ Ahora se puede hacer: "Horno"." or, for several,
+     * "▶ Ahora se pueden hacer: ...". Tasks outside General name their project.
+     */
+    public static String unlocked(TaskGraph graph, List<Task> tasks) {
+        List<String> names = tasks.stream()
+                .map(task -> "\"" + task.title() + "\"" + (Project.GENERAL_ID.equals(task.project())
+                        ? ""
+                        : " (en " + graph.project(task.project()).map(Project::title).orElse(task.project()) + ")"))
+                .toList();
+        return marker(TaskStatus.AVAILABLE) + (names.size() == 1 ? " Ahora se puede hacer: " : " Ahora se pueden hacer: ")
+                + String.join(", ", names) + ".";
+    }
+
     /** "Chica", "Mediana" or "Grande". */
     public static String size(TaskSize size) {
         return Character.toUpperCase(size.word().charAt(0)) + size.word().substring(1);
