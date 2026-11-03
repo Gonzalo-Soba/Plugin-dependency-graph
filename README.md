@@ -2,7 +2,7 @@
 
 Plugin de Paper para organizar las tareas comunales de un servidor de Minecraft. Las tareas forman un grafo de dependencias que se muestra en la pantalla de logros (advancements) vanilla, así que los jugadores no necesitan mods en el cliente.
 
-> Última versión: **0.3.0**. En desarrollo: 0.4.0, con varias pestañas (proyectos), ocultar ramas terminadas y botón "+" para crear tareas.
+> Última versión: **0.3.0**. En desarrollo: 0.4.0, con varias pestañas (proyectos), ocultar ramas terminadas, selector de íconos y pestañas "+" para crear tareas y proyectos.
 
 ## Cómo se ve
 
@@ -13,12 +13,16 @@ Plugin de Paper para organizar las tareas comunales de un servidor de Minecraft.
 - **Ocultar resueltas**, una opción de cada proyecto: saca de su pestaña las ramas terminadas, es decir, las tareas resueltas de las que ya no depende nada pendiente (en ningún proyecto). Una tarea resuelta que todavía desbloquea algo pendiente sigue a la vista. El raíz dice cuántas hay ocultas, y al volver a mostrarlas aparecen completadas, sin toasts.
 - El progreso es comunal: una tarea resuelta aparece completada para todos los jugadores, incluidos los que entran después.
 - Las tareas se manejan desde una ventana del juego (`/tareas`, la tecla G o el menú de pausa) o con los comandos `/tarea`. Ver [Interfaz](#interfaz).
+- **Pestañas "+ Tarea" y "+ Proyecto"** (solo con [PacketEvents](#requisitos)): las dos últimas pestañas de la pantalla de logros. Abrir "+ Tarea" abre «Nueva tarea» en el proyecto de la pestaña que estabas mirando (General si no miraste ninguna); "+ Proyecto" abre «Nuevo proyecto». Al cancelar volvés al juego, y la próxima vez que abrís los logros vuelven a la pestaña donde estabas.
+  - En la pantalla de logros no se puede poner un botón propio ni detectar clics en un logro: el cliente solo avisa qué pestaña se abre. Por eso el "+" es una pestaña.
+  - El cliente abre siempre los logros en su primera pestaña; el servidor la cambia enseguida por la última que miraste, así que se ve un salto corto.
 
 ## Requisitos
 
 - Servidor [Paper](https://papermc.io/) para Minecraft Java 26.3
 - Java 25
 - Plugin [UltimateAdvancementAPI](https://modrinth.com/plugin/ultimateadvancementapi/versions) **3.0.0-beta-4** instalado en el servidor. En Modrinth está marcada como *beta*: la versión que aparece primero (2.x) **no sirve**.
+- Opcional: plugin [PacketEvents](https://modrinth.com/plugin/packetevents/versions) **2.14.0** (la versión `+spigot`). Solo hace falta para las pestañas "+ Tarea" y "+ Proyecto". Sin él, todo lo demás funciona igual y para crear tareas se usa `/tareas` o la tecla G.
 
 ## Compilar
 
@@ -31,8 +35,9 @@ En Windows: `gradlew.bat build`. El jar queda en `build/libs/`.
 ## Instalar en el servidor
 
 1. Descargar `UltimateAdvancementAPI-Plugin-3.0.0-beta-4.jar` desde Modrinth y copiarlo a la carpeta `plugins/` del servidor.
-2. Copiar el jar de `build/libs/` a la misma carpeta `plugins/`.
-3. Reiniciar el servidor.
+2. Opcional, para las pestañas "+": descargar `packetevents-spigot-2.14.0.jar` desde Modrinth y copiarlo a `plugins/`.
+3. Copiar el jar de `build/libs/` a la misma carpeta `plugins/`.
+4. Reiniciar el servidor. El log dice `PacketEvents found: the "+ Tarea" and "+ Proyecto" tabs are on` o `PacketEvents not found: the "+" tabs are off`.
 
 ### Si el plugin no arranca
 
@@ -48,7 +53,8 @@ En Windows: `gradlew.bat build`. El jar queda en `build/libs/`.
 
 El proyecto trae un servidor de prueba con [run-paper](https://github.com/jpenilla/run-task). La tarea `runServer`:
 - descarga Paper 26.3 build 222, el mismo build contra el que compila el plugin;
-- descarga UltimateAdvancementAPI 3.0.0-beta-4 desde Modrinth;
+- descarga UltimateAdvancementAPI 3.0.0-beta-4 y PacketEvents 2.14.0 desde Modrinth. Para probar sin PacketEvents: `./gradlew runServer -PnoPacketEvents`;
+- registra en el log cada pestaña de logros que abre o cierra un cliente (líneas `[debug]`), para revisar el comportamiento de las pestañas "+";
 - compila el plugin y lo instala;
 - antes de arrancar, copia `dev-server/server.properties` a `run/`. Solo copia lo que falte en `run/`, así que tus cambios locales se conservan. Para volver a la configuración original, borrá `run/server.properties`.
 
@@ -99,6 +105,13 @@ Jugadores: **A** y **B**.
   - `/tarea proyecto lista` marca General con "(oculta ramas terminadas)". `/tareas` → General sigue listando las 4 tareas y dice "2 resueltas ocultas".
   - B sale y vuelve a entrar: las ocultas no aparecen y no hay toasts.
   - `/tarea proyecto mostrar General`: las dos vuelven a aparecer **completadas**, sin toast ni mensaje de logro. El botón «Ocultar resueltas» / «Mostrar resueltas» del Dialog hace lo mismo.
+- [ ] **Pestañas "+" con PacketEvents.** `./gradlew runServer`; el log dice `PacketEvents found`. Al final de la pantalla de logros están "+ Tarea" y "+ Proyecto", y el raíz de cada proyecto dice "Nueva tarea acá: pestaña «+ Tarea»".
+  - Desde la pestaña "Base", abrir "+ Tarea": se abre "Nueva tarea en Base" y la tarea creada queda en Base. Salir y volver a entrar y abrir "+ Tarea" sin pasar por otra pestaña: "Nueva tarea en General".
+  - «Cancelar» o Esc vuelven al juego. Al abrir los logros otra vez aparecen en Base (después de un salto corto desde la primera pestaña), no en "+ Tarea".
+  - Abrir y cerrar los logros cinco o seis veces seguidas: el Dialog no se abre solo y la pestaña no salta. Elegir una pestaña vanilla a propósito, cerrar y abrir: se queda en esa.
+  - "+ Proyecto" abre "Nuevo proyecto"; el proyecto creado aparece antes de "+ Tarea", que siguen siendo las dos últimas.
+  - Tecla G → «Nueva tarea»: abre en el proyecto de la última pestaña mirada.
+- [ ] **Sin PacketEvents.** `./gradlew runServer -PnoPacketEvents`; el log dice `PacketEvents not found` y no hay `NoClassDefFoundError`. No hay pestañas "+" y el raíz dice "Nueva tarea: /tareas o la tecla G.". Tecla G → «Nueva tarea» abre "Nueva tarea en General". `/tareas`, crear, resolver, el selector de íconos y `/tarea proyecto ocultar` funcionan igual.
 - [ ] **Interfaz: lista con 30 tareas.** Con el servidor apagado, copiar `dev-server/samples/tasks-30.json` sobre `run/plugins/TaskGraph/tasks.json` y arrancar. `/tareas` muestra las 30, se puede desplazar hasta el final y el orden por grupos se mantiene. La pestaña de logros también se ve legible.
 - [ ] **Interfaz: crear y editar.** "Nueva tarea" con un ítem en la mano crea la tarea con ese ícono y abre su ficha. Un título repetido muestra el error y conserva lo escrito. "Editar" cambia título y descripción en un solo paso.
 - [ ] **Íconos.** `/tarea icono Madera ` y Tab sugiere ítems; `/tarea icono Madera oak_log` cambia el ícono en la pestaña y en la ficha. `/tarea icono Madera air` se rechaza. En "Nueva tarea", el ícono `DIAMOND` crea la tarea con un diamante aunque tengas otra cosa en la mano; `diamante` muestra el error y conserva lo escrito; vacío usa el ítem en la mano. "Cambiar ícono" en la ficha acepta `minecraft:oak_log`, y vacío con la mano vacía muestra el error.
@@ -146,7 +159,7 @@ Además de `/tareas`, la interfaz se abre desde:
 - **La tecla de acciones rápidas** del juego: **G** por defecto, se puede cambiar en Opciones → Controles.
 - **El botón "Tareas del servidor" del menú de pausa** (Esc).
 
-Los dos abren primero una ventana chica con el botón **Abrir lista**, que lleva a la misma lista de proyectos que `/tareas`. Ese paso intermedio es necesario porque la ventana del atajo se registra al arrancar el servidor y no puede mostrar las tareas del momento.
+Los dos abren primero una ventana chica con dos botones: **Abrir lista**, que lleva a la misma lista de proyectos que `/tareas`, y **Nueva tarea**, que la crea en el proyecto de la última pestaña de logros que miraste (en General sin PacketEvents, o si no miraste ninguna). Cancelar «Nueva tarea» vuelve al juego. Ese paso intermedio es necesario porque la ventana del atajo se registra al arrancar el servidor y no puede mostrar las tareas del momento.
 
 > Si otro plugin o datapack también agrega acciones rápidas, la tecla muestra una lista para elegir entre ellas en lugar de abrir la de tareas directamente. Lo mismo pasa con varios botones en el menú de pausa. `/tareas` funciona siempre igual.
 
