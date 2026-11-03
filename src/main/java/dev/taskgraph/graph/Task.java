@@ -17,6 +17,8 @@ import java.util.Set;
  *                     creators were recorded
  * @param project      id of the project (advancement tab) the task belongs to; {@code null} means General,
  *                     which is how tasks stored before projects existed are read
+ * @param size         shown as the advancement frame; {@code null} means small, which is how tasks stored
+ *                     before sizes existed are read
  */
 public record Task(
         String id,
@@ -27,7 +29,8 @@ public record Task(
         PlayerRef assignee,
         boolean resolved,
         PlayerRef creator,
-        String project
+        String project,
+        TaskSize size
 ) {
 
     public Task {
@@ -37,6 +40,13 @@ public record Task(
         description = description == null ? "" : description;
         dependencies = dependencies == null ? List.of() : List.copyOf(dependencies);
         project = project == null ? Project.GENERAL_ID : project;
+        size = size == null ? TaskSize.SMALL : size;
+    }
+
+    /** Small task. */
+    public Task(String id, String title, String description, String icon, List<String> dependencies,
+                PlayerRef assignee, boolean resolved, PlayerRef creator, String project) {
+        this(id, title, description, icon, dependencies, assignee, resolved, creator, project, TaskSize.SMALL);
     }
 
     /** Task in General. */
@@ -52,7 +62,7 @@ public record Task(
     }
 
     public static Task create(String id, String title, String icon, PlayerRef creator, String project) {
-        return new Task(id, title, "", icon, List.of(), null, false, creator, project);
+        return new Task(id, title, "", icon, List.of(), null, false, creator, project, TaskSize.SMALL);
     }
 
     public Optional<PlayerRef> creatorOptional() {
@@ -91,30 +101,34 @@ public record Task(
     }
 
     Task withTitle(String newTitle) {
-        return new Task(id, newTitle, description, icon, dependencies, assignee, resolved, creator, project);
+        return new Task(id, newTitle, description, icon, dependencies, assignee, resolved, creator, project, size);
     }
 
     Task withIcon(String newIcon) {
-        return new Task(id, title, description, newIcon, dependencies, assignee, resolved, creator, project);
+        return new Task(id, title, description, newIcon, dependencies, assignee, resolved, creator, project, size);
     }
 
     Task withDescription(String newDescription) {
-        return new Task(id, title, newDescription, icon, dependencies, assignee, resolved, creator, project);
+        return new Task(id, title, newDescription, icon, dependencies, assignee, resolved, creator, project, size);
     }
 
     Task withDependencies(List<String> newDependencies) {
-        return new Task(id, title, description, icon, newDependencies, assignee, resolved, creator, project);
+        return new Task(id, title, description, icon, newDependencies, assignee, resolved, creator, project, size);
     }
 
     Task withAssignee(PlayerRef newAssignee) {
-        return new Task(id, title, description, icon, dependencies, newAssignee, resolved, creator, project);
+        return new Task(id, title, description, icon, dependencies, newAssignee, resolved, creator, project, size);
     }
 
     Task withResolved(boolean newResolved) {
-        return new Task(id, title, description, icon, dependencies, assignee, newResolved, creator, project);
+        return new Task(id, title, description, icon, dependencies, assignee, newResolved, creator, project, size);
+    }
+
+    Task withSize(TaskSize newSize) {
+        return new Task(id, title, description, icon, dependencies, assignee, resolved, creator, project, newSize);
     }
 
     Task withProject(String newProject) {
-        return new Task(id, title, description, icon, dependencies, assignee, resolved, creator, newProject);
+        return new Task(id, title, description, icon, dependencies, assignee, resolved, creator, newProject, size);
     }
 }

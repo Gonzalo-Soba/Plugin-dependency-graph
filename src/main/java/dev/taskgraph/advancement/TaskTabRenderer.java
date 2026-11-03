@@ -159,11 +159,15 @@ public final class TaskTabRenderer {
                 .ifPresent(line -> lines.add(Component.text(line, NamedTextColor.YELLOW)));
 
         // Column 0 is taken by the root, so tasks start one column to the right.
-        return new AdvancementDisplayBuilder(TaskIcons.of(task.icon()), legacy(Component.text(task.title(), NamedTextColor.WHITE)))
+        AdvancementDisplayBuilder builder = new AdvancementDisplayBuilder(TaskIcons.of(task.icon()), legacy(Component.text(task.title(), NamedTextColor.WHITE)))
                 .description(lines.stream().map(TaskTabRenderer::legacy).toArray(String[]::new))
-                .taskFrame()
-                .coords(position.column() + 1, position.row())
-                .build();
+                .coords(position.column() + 1, position.row());
+        AdvancementDisplayBuilder framed = switch (task.size()) {
+            case SMALL -> builder.taskFrame();
+            case MEDIUM -> builder.goalFrame();
+            case LARGE -> builder.challengeFrame();
+        };
+        return framed.build();
     }
 
     private static String legacy(Component component) {

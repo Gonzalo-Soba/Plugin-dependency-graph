@@ -7,6 +7,7 @@ import dev.taskgraph.graph.Task;
 import dev.taskgraph.graph.TaskGraphException;
 import dev.taskgraph.graph.TaskPermissions;
 import dev.taskgraph.graph.TaskPermissions.Actor;
+import dev.taskgraph.graph.TaskSize;
 import dev.taskgraph.service.TaskService;
 import dev.taskgraph.storage.TaskStoreException;
 
@@ -58,6 +59,11 @@ public final class TaskActions {
         return "No existe el proyecto " + quoted(title) + ".";
     }
 
+    /** For a size that isn't chica, mediana or grande. */
+    public static String unknownSize(String input) {
+        return "No hay ningún tamaño " + quoted(input.strip()) + ". Usá chica, mediana o grande.";
+    }
+
     /** For an item id that doesn't name an item usable as an icon. */
     public static String unknownIcon(String input) {
         return "No hay ningún ítem " + quoted(input.strip()) + " que sirva de ícono. Usá su id, por ejemplo diamond o minecraft:oak_log.";
@@ -105,6 +111,17 @@ public final class TaskActions {
         return withTask(taskId, task -> ActionResult.success(
                 service.changeIcon(task.id(), icon),
                 "El ícono de " + quoted(task.title()) + " ahora es " + IconKeys.display(icon) + "."));
+    }
+
+    /** Open to everyone, like editing the description. */
+    public ActionResult changeSize(Actor actor, String taskId, TaskSize size) {
+        return withTask(taskId, task -> {
+            if (task.size() == size) {
+                return ActionResult.success(task, quoted(task.title()) + " ya era " + size.word() + ".");
+            }
+            return ActionResult.success(service.changeSize(task.id(), size),
+                    quoted(task.title()) + " ahora es " + size.word() + ".");
+        });
     }
 
     public ActionResult addDependency(Actor actor, String taskId, String dependencyId) {

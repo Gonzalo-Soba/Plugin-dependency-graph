@@ -3,6 +3,7 @@ package dev.taskgraph.action;
 import dev.taskgraph.graph.Project;
 import dev.taskgraph.graph.Task;
 import dev.taskgraph.graph.TaskGraph;
+import dev.taskgraph.graph.TaskSize;
 import dev.taskgraph.graph.TaskPermissions.Actor;
 import dev.taskgraph.service.TaskService;
 import dev.taskgraph.storage.JsonTaskStore;
@@ -127,6 +128,20 @@ class TaskActionsTest {
 
             assertSuccess("El ícono de \"Mesa\" ahora es oak_log.", actions.changeIcon(STEVE, task.id(), "minecraft:oak_log"));
             assertEquals("minecraft:oak_log", service.task(task.id()).orElseThrow().icon());
+        }
+
+        @Test
+        void anyoneChangesTheSize() {
+            Task task = create(ALEX, "Mesa");
+
+            assertSuccess("\"Mesa\" ahora es grande.", actions.changeSize(STEVE, task.id(), TaskSize.LARGE));
+            assertEquals(TaskSize.LARGE, service.task(task.id()).orElseThrow().size());
+            assertSuccess("\"Mesa\" ya era grande.", actions.changeSize(STEVE, task.id(), TaskSize.LARGE));
+        }
+
+        @Test
+        void unknownSizeExplainsWhatToType() {
+            assertEquals("No hay ningún tamaño \"enorme\". Usá chica, mediana o grande.", TaskActions.unknownSize(" enorme "));
         }
 
         @Test

@@ -3,6 +3,7 @@ package dev.taskgraph.action;
 import dev.taskgraph.graph.Project;
 import dev.taskgraph.graph.Task;
 import dev.taskgraph.graph.TaskGraph;
+import dev.taskgraph.graph.TaskSize;
 import dev.taskgraph.graph.TaskStatus;
 
 import java.util.List;
@@ -52,6 +53,11 @@ public final class TaskTexts {
         }
         String project = graph.project(dependency.project()).map(Project::title).orElse(dependency.project());
         return dependency.title() + " (en " + project + ")";
+    }
+
+    /** "Chica", "Mediana" or "Grande". */
+    public static String size(TaskSize size) {
+        return Character.toUpperCase(size.word().charAt(0)) + size.word().substring(1);
     }
 
     public static String status(TaskStatus status) {

@@ -4,6 +4,7 @@ import dev.taskgraph.graph.PlayerRef;
 import dev.taskgraph.graph.Project;
 import dev.taskgraph.graph.Task;
 import dev.taskgraph.graph.TaskGraph;
+import dev.taskgraph.graph.TaskSize;
 import dev.taskgraph.storage.JsonTaskStore;
 
 import java.util.List;
@@ -105,6 +106,10 @@ public final class TaskService {
 
     public Task describe(String id, String description) {
         return apply(next -> next.setDescription(id, description));
+    }
+
+    public Task changeSize(String id, TaskSize size) {
+        return apply(next -> next.setSize(id, size));
     }
 
     public Task changeIcon(String id, String icon) {
