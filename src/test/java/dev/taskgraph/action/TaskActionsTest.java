@@ -332,6 +332,26 @@ class TaskActionsTest {
         }
 
         @Test
+        void recordsWhoResolvedAndWhen() {
+            Task task = create(ALEX, "Mesa");
+
+            Task resolved = actions.resolve(STEVE, task.id()).task();
+
+            assertEquals(STEVE.playerRef().orElseThrow(), resolved.resolvedBy());
+            assertTrue(resolved.resolvedAtOptional().isPresent());
+        }
+
+        @Test
+        void theConsoleResolvesWithoutAPlayer() {
+            Task task = create(ALEX, "Mesa");
+
+            Task resolved = actions.resolve(Actor.console(), task.id()).task();
+
+            assertNull(resolved.resolvedBy());
+            assertTrue(resolved.resolvedAtOptional().isPresent());
+        }
+
+        @Test
         void announcesToEveryoneInsteadOfReplying() {
             Task task = create(ALEX, "Mesa");
 

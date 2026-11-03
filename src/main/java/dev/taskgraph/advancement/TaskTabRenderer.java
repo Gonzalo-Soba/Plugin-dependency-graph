@@ -21,6 +21,7 @@ import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Material;
 import org.bukkit.inventory.ItemStack;
 
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -157,6 +158,8 @@ public final class TaskTabRenderer {
                 lines.add(Component.text("Asignada a: " + assignee.name(), NamedTextColor.AQUA)));
         TaskTexts.alsoRequires(graph, task, drawnIds)
                 .ifPresent(line -> lines.add(Component.text(line, NamedTextColor.YELLOW)));
+        TaskTexts.resolution(task, ZoneId.systemDefault())
+                .ifPresent(line -> lines.add(Component.text(line, NamedTextColor.GREEN)));
 
         // Column 0 is taken by the root, so tasks start one column to the right.
         AdvancementDisplayBuilder builder = new AdvancementDisplayBuilder(TaskIcons.of(task.icon()), legacy(Component.text(task.title(), NamedTextColor.WHITE)))

@@ -29,6 +29,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.BiFunction;
@@ -318,6 +319,8 @@ public final class TaskCommand {
         sender.sendMessage(Component.text("Tamaño: " + TaskTexts.size(task.size()), NamedTextColor.GRAY));
         sender.sendMessage(Component.text("Estado: " + (task.resolved() ? "resuelta" : "pendiente"),
                 task.resolved() ? NamedTextColor.GREEN : NamedTextColor.YELLOW));
+        TaskTexts.resolution(task, ZoneId.systemDefault())
+                .ifPresent(line -> sender.sendMessage(Component.text(line, NamedTextColor.GREEN)));
         sender.sendMessage(Component.text("Creada por: "
                 + task.creatorOptional().map(PlayerRef::name).orElse("desconocido"), NamedTextColor.GRAY));
         sender.sendMessage(Component.text("Asignada a: "
