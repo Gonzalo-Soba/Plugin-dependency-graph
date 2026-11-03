@@ -15,7 +15,14 @@ public final class RejectionMessages {
     }
 
     public static String of(TaskGraphException exception, Function<String, String> titleOf) {
+        return of(exception, titleOf, Function.identity());
+    }
+
+    /** @param projectTitleOf title of a project id, for the project reasons */
+    public static String of(TaskGraphException exception, Function<String, String> titleOf,
+                            Function<String, String> projectTitleOf) {
         String task = quoted(titleOf.apply(exception.taskId()));
+        String project = quoted(projectTitleOf.apply(exception.taskId()));
         List<String> related = exception.relatedIds().stream().map(titleOf).toList();
         return switch (exception.reason()) {
             case INVALID_ID -> "Id interno inválido: " + task + ".";
@@ -35,6 +42,13 @@ public final class RejectionMessages {
             case ALREADY_RESOLVED -> task + " ya está resuelta.";
             case UNRESOLVED_DEPENDENCIES -> "No se puede resolver " + task + ": faltan " + list(related) + ".";
             case HAS_DEPENDENTS -> "No se puede borrar " + task + ": dependen de ella " + list(related) + ".";
+            case PROJECT_NOT_FOUND -> "No existe el proyecto " + project + ".";
+            case DUPLICATE_PROJECT_TITLE -> "Ya existe un proyecto llamado " + project + ".";
+            case GENERAL_PROJECT -> "El proyecto " + project + " no se puede borrar.";
+            case PROJECT_NOT_EMPTY -> "No se puede borrar el proyecto " + project + ": todavía tiene tareas ("
+                    + list(related) + "). Movelas o borralas primero.";
+            case ALREADY_IN_PROJECT -> task + " ya está en el proyecto "
+                    + quoted(projectTitleOf.apply(exception.relatedIds().getFirst())) + ".";
         };
     }
 

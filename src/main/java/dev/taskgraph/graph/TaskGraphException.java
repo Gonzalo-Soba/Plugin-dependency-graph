@@ -5,6 +5,7 @@ import java.util.List;
 /**
  * Rejected graph operation. {@link #relatedIds()} carries the tasks that explain the rejection
  * (the cycle path, the unresolved dependencies, the dependents...), so callers can build a message.
+ * For the project reasons, {@link #taskId()} is a project id instead; see each reason.
  */
 public final class TaskGraphException extends RuntimeException {
 
@@ -23,7 +24,17 @@ public final class TaskGraphException extends RuntimeException {
         NOT_ASSIGNED,
         ALREADY_RESOLVED,
         UNRESOLVED_DEPENDENCIES,
-        HAS_DEPENDENTS
+        HAS_DEPENDENTS,
+        /** Subject is the project id. */
+        PROJECT_NOT_FOUND,
+        /** Subject is the id of the project that already has the title. */
+        DUPLICATE_PROJECT_TITLE,
+        /** Subject is the General project id. */
+        GENERAL_PROJECT,
+        /** Subject is the project id; related ids are its tasks. */
+        PROJECT_NOT_EMPTY,
+        /** Subject is the task id; the related id is the project it is already in. */
+        ALREADY_IN_PROJECT
     }
 
     private final Reason reason;

@@ -1,8 +1,10 @@
 package dev.taskgraph.service;
 
 import dev.taskgraph.graph.PlayerRef;
+import dev.taskgraph.graph.Project;
 import dev.taskgraph.graph.Task;
 import dev.taskgraph.graph.TaskGraph;
+import dev.taskgraph.graph.TaskSize;
 import dev.taskgraph.storage.JsonTaskStore;
 
 import java.util.List;
@@ -50,6 +52,19 @@ public final class TaskService {
         return graph.tasks();
     }
 
+    public Optional<Project> project(String id) {
+        return graph.project(id);
+    }
+
+    public Optional<Project> findProjectByTitle(String title) {
+        return graph.findProjectByTitle(title);
+    }
+
+    /** In tab order: General first, then by creation. */
+    public List<Project> projects() {
+        return graph.projects();
+    }
+
     /** Read-only view for callers that need graph queries; changes to it are not saved. */
     public TaskGraph snapshot() {
         return graph.copy();
@@ -57,7 +72,32 @@ public final class TaskService {
 
     /** @param creator player creating the task, or {@code null} for the console */
     public Task create(String title, String icon, PlayerRef creator) {
-        return apply(next -> next.create(title, icon, creator));
+        return create(title, icon, creator, Project.GENERAL_ID);
+    }
+
+    /** @param creator player creating the task, or {@code null} for the console */
+    public Task create(String title, String icon, PlayerRef creator, String projectId) {
+        return apply(next -> next.create(title, icon, creator, projectId));
+    }
+
+    public Task moveTask(String id, String projectId) {
+        return apply(next -> next.moveTask(id, projectId));
+    }
+
+    public Project createProject(String title) {
+        return apply(next -> next.createProject(title));
+    }
+
+    public Project renameProject(String id, String newTitle) {
+        return apply(next -> next.renameProject(id, newTitle));
+    }
+
+    public Project removeProject(String id) {
+        return apply(next -> next.removeProject(id));
+    }
+
+    public Project setHideResolved(String id, boolean hide) {
+        return apply(next -> next.setHideResolved(id, hide));
     }
 
     public Task rename(String id, String newTitle) {
@@ -66,6 +106,10 @@ public final class TaskService {
 
     public Task describe(String id, String description) {
         return apply(next -> next.setDescription(id, description));
+    }
+
+    public Task changeSize(String id, TaskSize size) {
+        return apply(next -> next.setSize(id, size));
     }
 
     public Task changeIcon(String id, String icon) {
@@ -97,9 +141,9 @@ public final class TaskService {
         return apply(next -> next.remove(id));
     }
 
-    private Task apply(Function<TaskGraph, Task> change) {
+    private <T> T apply(Function<TaskGraph, T> change) {
         TaskGraph next = graph.copy();
-        Task result = change.apply(next);
+        T result = change.apply(next);
         store.save(next);
         graph = next;
         onChange.accept(graph);

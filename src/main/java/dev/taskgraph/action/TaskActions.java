@@ -2,13 +2,17 @@ package dev.taskgraph.action;
 
 import dev.taskgraph.graph.IconKeys;
 import dev.taskgraph.graph.PlayerRef;
+import dev.taskgraph.graph.Project;
 import dev.taskgraph.graph.Task;
+import dev.taskgraph.graph.TaskGraph;
 import dev.taskgraph.graph.TaskGraphException;
 import dev.taskgraph.graph.TaskPermissions;
 import dev.taskgraph.graph.TaskPermissions.Actor;
+import dev.taskgraph.graph.TaskSize;
 import dev.taskgraph.service.TaskService;
 import dev.taskgraph.storage.TaskStoreException;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -24,6 +28,9 @@ import java.util.logging.Logger;
 public final class TaskActions {
 
     static final String FALLBACK_ICON_NOTE = "No tenías nada en la mano, así que el ícono es papel.";
+    public static final String PROJECT_GONE = "Ese proyecto ya no existe.";
+    static final String HIDE_RESOLVED_NOTE =
+            "Una tarea resuelta se oculta de la pestaña cuando todo lo que depende de ella también está resuelto.";
 
     private final TaskService service;
     private final Consumer<String> announcer;
@@ -42,8 +49,21 @@ public final class TaskActions {
         return service.findByTitle(title);
     }
 
+    public Optional<Project> findProjectByTitle(String title) {
+        return service.findProjectByTitle(title);
+    }
+
     public static String unknownTitle(String title) {
         return "No existe la tarea " + quoted(title) + ".";
+    }
+
+    public static String unknownProject(String title) {
+        return "No existe el proyecto " + quoted(title) + ".";
+    }
+
+    /** For a size that isn't chica, mediana or grande. */
+    public static String unknownSize(String input) {
+        return "No hay ningún tamaño " + quoted(input.strip()) + ". Usá chica, mediana o grande.";
     }
 
     /** For an item id that doesn't name an item usable as an icon. */
@@ -51,13 +71,24 @@ public final class TaskActions {
         return "No hay ningún ítem " + quoted(input.strip()) + " que sirva de ícono. Usá su id, por ejemplo diamond o minecraft:oak_log.";
     }
 
+    /** Creates the task in General. */
+    public ActionResult create(Actor actor, String title, String icon, boolean iconIsFallback) {
+        return create(actor, title, icon, iconIsFallback, Project.GENERAL_ID);
+    }
+
     /**
      * @param iconIsFallback whether {@code icon} replaces an empty hand, so the actor is told
      */
-    public ActionResult create(Actor actor, String title, String icon, boolean iconIsFallback) {
+    public ActionResult create(Actor actor, String title, String icon, boolean iconIsFallback, String projectId) {
+        Optional<Project> project = service.project(projectId);
+        if (project.isEmpty()) {
+            return ActionResult.failure(null, PROJECT_GONE);
+        }
         return run(null, () -> {
-            Task task = service.create(title, icon, actor.playerRef().orElse(null));
-            String message = "Tarea " + quoted(task.title()) + " creada.";
+            Task task = service.create(title, icon, actor.playerRef().orElse(null), projectId);
+            String message = project.get().isGeneral()
+                    ? "Tarea " + quoted(task.title()) + " creada."
+                    : "Tarea " + quoted(task.title()) + " creada en " + quoted(project.get().title()) + ".";
             return iconIsFallback
                     ? ActionResult.success(task, message, FALLBACK_ICON_NOTE)
                     : ActionResult.success(task, message);
@@ -82,6 +113,17 @@ public final class TaskActions {
         return withTask(taskId, task -> ActionResult.success(
                 service.changeIcon(task.id(), icon),
                 "El ícono de " + quoted(task.title()) + " ahora es " + IconKeys.display(icon) + "."));
+    }
+
+    /** Open to everyone, like editing the description. */
+    public ActionResult changeSize(Actor actor, String taskId, TaskSize size) {
+        return withTask(taskId, task -> {
+            if (task.size() == size) {
+                return ActionResult.success(task, quoted(task.title()) + " ya era " + size.word() + ".");
+            }
+            return ActionResult.success(service.changeSize(task.id(), size),
+                    quoted(task.title()) + " ahora es " + size.word() + ".");
+        });
     }
 
     public ActionResult addDependency(Actor actor, String taskId, String dependencyId) {
@@ -146,6 +188,53 @@ public final class TaskActions {
         });
     }
 
+    public ActionResult moveTask(Actor actor, String taskId, String projectId) {
+        return withTask(taskId, task -> withProject(task, projectId, project -> ActionResult.success(
+                service.moveTask(task.id(), project.id()),
+                quoted(task.title()) + " ahora está en el proyecto " + quoted(project.title()) + ".")));
+    }
+
+    /** Project actions report no task: {@link ActionResult#task()} is always {@code null}. */
+    public ActionResult createProject(Actor actor, String title) {
+        return run(null, () -> {
+            Project project = service.createProject(title);
+            return ActionResult.success(null, "Proyecto " + quoted(project.title()) + " creado.",
+                    "Tiene su propia pestaña en la pantalla de logros.");
+        });
+    }
+
+    public ActionResult renameProject(Actor actor, String projectId, String newTitle) {
+        return run(null, () -> withProject(null, projectId, project -> {
+            Project renamed = service.renameProject(project.id(), newTitle);
+            return ActionResult.success(null, "El proyecto " + quoted(project.title()) + " ahora se llama " + quoted(renamed.title()) + ".");
+        }));
+    }
+
+    /** Open to everyone, like renaming: it only changes what the project's tab shows. */
+    public ActionResult setHideResolved(Actor actor, String projectId, boolean hide) {
+        return run(null, () -> withProject(null, projectId, project -> {
+            if (project.hideResolved() == hide) {
+                return ActionResult.success(null, quoted(project.title()) + (hide
+                        ? " ya ocultaba las ramas terminadas."
+                        : " ya mostraba todas las tareas resueltas."));
+            }
+            service.setHideResolved(project.id(), hide);
+            return hide
+                    ? ActionResult.success(null, quoted(project.title()) + " ahora oculta las ramas terminadas.", HIDE_RESOLVED_NOTE)
+                    : ActionResult.success(null, quoted(project.title()) + " ahora muestra todas las tareas resueltas.");
+        }));
+    }
+
+    public ActionResult removeProject(Actor actor, String projectId) {
+        return run(null, () -> withProject(null, projectId, project -> {
+            if (!TaskPermissions.canRemoveProject(actor)) {
+                return ActionResult.failure(null, "Solo un admin puede borrar proyectos.");
+            }
+            service.removeProject(project.id());
+            return ActionResult.success(null, "Proyecto " + quoted(project.title()) + " borrado.");
+        }));
+    }
+
     public ActionResult remove(Actor actor, String taskId) {
         return withTask(taskId, task -> {
             if (!TaskPermissions.canRemove(task, actor)) {
@@ -166,26 +255,59 @@ public final class TaskActions {
         return run(task.get(), () -> action.apply(task.get()));
     }
 
+    /**
+     * Must run inside {@link #run}, like {@link #withOther}.
+     *
+     * @param task reported with the result when the project no longer exists, may be {@code null}
+     */
+    private ActionResult withProject(Task task, String projectId, Function<Project, ActionResult> action) {
+        return service.project(projectId)
+                .map(action)
+                .orElseGet(() -> ActionResult.failure(task, PROJECT_GONE));
+    }
+
     private ActionResult withOther(Task task, String otherId, Function<Task, ActionResult> action) {
         return service.task(otherId)
                 .map(action)
                 .orElseGet(() -> ActionResult.failure(task, "Esa tarea ya no existe."));
     }
 
-    /** Turns graph rejections and save failures into failed results; {@code task} is reported with them. */
+    /**
+     * Runs one action: turns graph rejections and save failures into failed results ({@code task} is
+     * reported with them), and after a change announces the tasks it unlocked. Every public action goes
+     * through here exactly once, so nothing is announced twice.
+     */
     private ActionResult run(Task task, Supplier<ActionResult> action) {
+        TaskGraph before = service.snapshot();
         try {
-            return action.get();
+            ActionResult result = action.get();
+            if (result.success()) {
+                announceUnlocked(before);
+            }
+            return result;
         } catch (TaskGraphException exception) {
-            return ActionResult.failure(task, RejectionMessages.of(exception, this::titleOf));
+            return ActionResult.failure(task, RejectionMessages.of(exception, this::titleOf, this::projectTitleOf));
         } catch (TaskStoreException exception) {
             logger.log(Level.SEVERE, "Could not save tasks", exception);
             return ActionResult.failure(task, "No se pudo guardar el cambio. Revisá el log del servidor.");
         }
     }
 
+    /** After the action's own announcement (resolving announces first), so the order reads naturally. */
+    private void announceUnlocked(TaskGraph before) {
+        TaskGraph after = service.snapshot();
+        List<Task> unlocked = after.unlockedSince(before);
+        if (!unlocked.isEmpty()) {
+            announcer.accept(TaskTexts.unlocked(after, unlocked));
+        }
+    }
+
     private String titleOf(String id) {
         return service.task(id).map(Task::title).orElse(id);
+    }
+
+    private String projectTitleOf(String id) {
+        return service.project(id).map(Project::title).orElse(id);
     }
 
     static String quoted(String title) {

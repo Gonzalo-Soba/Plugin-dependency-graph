@@ -4,13 +4,15 @@ plugins {
 }
 
 group = "dev.taskgraph"
-version = "0.3.0"
+version = "0.4.0"
 
 // The dev server runs the same Paper build the plugin compiles against.
 val minecraftVersion = "26.3"
 val paperBuild = 222
 val paperVersion = "$minecraftVersion.build.$paperBuild-stable"
 val uaapiVersion = "3.0.0-beta-4"
+// Optional at runtime: only the "+" tabs need it (see dev.taskgraph.packet).
+val packetEventsVersion = "2.14.0"
 val junitVersion = "6.1.3"
 // Must match the Gson version exposed by paper-api, which provides it at runtime.
 val gsonVersion = "2.14.0"
@@ -27,6 +29,9 @@ repositories {
     maven("https://nexus.frengor.com/repository/public/") {
         name = "frengor"
     }
+    maven("https://repo.codemc.io/repository/maven-releases/") {
+        name = "codemc"
+    }
 }
 
 val apiSources = configurations.create("apiSources") {
@@ -36,9 +41,12 @@ val apiSources = configurations.create("apiSources") {
 dependencies {
     compileOnly("io.papermc.paper:paper-api:$paperVersion")
     compileOnly("com.frengor:ultimateadvancementapi:$uaapiVersion")
+    compileOnly("com.github.retrooper:packetevents-spigot:$packetEventsVersion")
 
     apiSources("io.papermc.paper:paper-api:$paperVersion:sources")
     apiSources("com.frengor:ultimateadvancementapi:$uaapiVersion:sources")
+    apiSources("com.github.retrooper:packetevents-api:$packetEventsVersion:sources")
+    apiSources("com.github.retrooper:packetevents-spigot:$packetEventsVersion:sources")
     apiSources("net.kyori:adventure-api:$adventureVersion:sources")
     apiSources("net.kyori:adventure-text-serializer-legacy:$adventureVersion:sources")
     apiSources("com.mojang:brigadier:$brigadierVersion:sources")
@@ -99,11 +107,17 @@ val prepareDevServer = tasks.register<Copy>("prepareDevServer") {
 }
 
 // The plugin jar from the jar task is added automatically by run-paper.
+// `-PnoPacketEvents` starts it without PacketEvents, to try the plugin without the "+" tabs.
 tasks.runServer {
     dependsOn(prepareDevServer)
     minecraftVersion(minecraftVersion)
     build(paperBuild)
     downloadPlugins {
         modrinth("ultimateadvancementapi", uaapiVersion)
+        if (!project.hasProperty("noPacketEvents")) {
+            modrinth("packetevents", "$packetEventsVersion+spigot")
+        }
     }
+    // Logs every advancement tab packet (see PacketEventsTabPackets).
+    systemProperty("taskgraph.debugTabs", "true")
 }

@@ -1,7 +1,9 @@
 package dev.taskgraph.action;
 
+import dev.taskgraph.graph.Project;
 import dev.taskgraph.graph.Task;
 import dev.taskgraph.graph.TaskGraph;
+import dev.taskgraph.graph.TaskSize;
 import dev.taskgraph.graph.TaskPermissions.Actor;
 import dev.taskgraph.service.TaskService;
 import dev.taskgraph.storage.JsonTaskStore;
@@ -126,6 +128,20 @@ class TaskActionsTest {
 
             assertSuccess("El ícono de \"Mesa\" ahora es oak_log.", actions.changeIcon(STEVE, task.id(), "minecraft:oak_log"));
             assertEquals("minecraft:oak_log", service.task(task.id()).orElseThrow().icon());
+        }
+
+        @Test
+        void anyoneChangesTheSize() {
+            Task task = create(ALEX, "Mesa");
+
+            assertSuccess("\"Mesa\" ahora es grande.", actions.changeSize(STEVE, task.id(), TaskSize.LARGE));
+            assertEquals(TaskSize.LARGE, service.task(task.id()).orElseThrow().size());
+            assertSuccess("\"Mesa\" ya era grande.", actions.changeSize(STEVE, task.id(), TaskSize.LARGE));
+        }
+
+        @Test
+        void unknownSizeExplainsWhatToType() {
+            assertEquals("No hay ningún tamaño \"enorme\". Usá chica, mediana o grande.", TaskActions.unknownSize(" enorme "));
         }
 
         @Test
@@ -271,6 +287,51 @@ class TaskActionsTest {
     class Resolve {
 
         @Test
+        void announcesWhatItUnlocksAfterTheResolution() {
+            Task wood = create(ALEX, "Madera");
+            Task table = create(ALEX, "Mesa");
+            actions.addDependency(ALEX, table.id(), wood.id());
+
+            actions.resolve(STEVE, wood.id());
+
+            assertEquals(List.of("✔ Steve resolvió la tarea \"Madera\"", "▶ Ahora se puede hacer: \"Mesa\"."), announcements);
+        }
+
+        @Test
+        void removingTheBlockingDependencyAnnouncesTheUnlock() {
+            Task wood = create(ALEX, "Madera");
+            Task table = create(ALEX, "Mesa");
+            actions.addDependency(ALEX, table.id(), wood.id());
+
+            actions.removeDependency(ALEX, table.id(), wood.id());
+
+            assertEquals(List.of("▶ Ahora se puede hacer: \"Mesa\"."), announcements);
+        }
+
+        @Test
+        void changesThatUnlockNothingAnnounceNothing() {
+            Task wood = create(ALEX, "Madera");
+            Task table = create(ALEX, "Mesa");
+            actions.addDependency(ALEX, table.id(), wood.id());
+            actions.createProject(ALEX, "Base");
+
+            actions.moveTask(ALEX, table.id(), service.findProjectByTitle("Base").orElseThrow().id());
+            actions.describe(ALEX, table.id(), "De roble");
+
+            assertTrue(announcements.isEmpty());
+        }
+
+        @Test
+        void rejectedResolutionAnnouncesNothing() {
+            Task wood = create(ALEX, "Madera");
+            Task table = create(ALEX, "Mesa");
+            actions.addDependency(ALEX, table.id(), wood.id());
+
+            assertFalse(actions.resolve(ALEX, table.id()).success());
+            assertTrue(announcements.isEmpty());
+        }
+
+        @Test
         void announcesToEveryoneInsteadOfReplying() {
             Task task = create(ALEX, "Mesa");
 
@@ -325,6 +386,129 @@ class TaskActionsTest {
             actions.addDependency(ALEX, table.id(), wood.id());
 
             assertFailure("No se puede borrar \"Madera\": dependen de ella \"Mesa\".", actions.remove(ALEX, wood.id()));
+        }
+    }
+
+    @Nested
+    class Projects {
+
+        private Project project(String title) {
+            assertTrue(actions.createProject(ALEX, title).success());
+            return service.findProjectByTitle(title).orElseThrow();
+        }
+
+        @Test
+        void anyoneCreatesAProject() {
+            ActionResult result = actions.createProject(STEVE, "Base del norte");
+
+            assertSuccess("Proyecto \"Base del norte\" creado.", result);
+            assertEquals(List.of("Tiene su propia pestaña en la pantalla de logros."), result.details());
+            assertNull(result.task());
+            assertTrue(service.findProjectByTitle("base del norte").isPresent());
+        }
+
+        @Test
+        void repeatedProjectTitleIsRejected() {
+            project("Base");
+
+            assertFailure("Ya existe un proyecto llamado \"Base\".", actions.createProject(STEVE, "BASE"));
+        }
+
+        @Test
+        void anyoneRenamesAProject() {
+            Project base = project("Base");
+
+            assertSuccess("El proyecto \"Base\" ahora se llama \"Castillo\".", actions.renameProject(STEVE, base.id(), "Castillo"));
+        }
+
+        @Test
+        void onlyAdminsRemoveProjects() {
+            Project base = project("Base");
+
+            assertFailure("Solo un admin puede borrar proyectos.", actions.removeProject(ALEX, base.id()));
+            assertSuccess("Proyecto \"Base\" borrado.", actions.removeProject(ADMIN, base.id()));
+            assertTrue(service.project(base.id()).isEmpty());
+        }
+
+        @Test
+        void removingProjectWithTasksListsThem() {
+            Project base = project("Base");
+            actions.create(ALEX, "Muralla", ICON, false, base.id());
+
+            assertFailure("No se puede borrar el proyecto \"Base\": todavía tiene tareas (\"Muralla\"). Movelas o borralas primero.",
+                    actions.removeProject(ADMIN, base.id()));
+        }
+
+        @Test
+        void generalCannotBeRemoved() {
+            assertFailure("El proyecto \"General\" no se puede borrar.", actions.removeProject(ADMIN, Project.GENERAL_ID));
+        }
+
+        @Test
+        void createsTaskInAProjectNamingIt() {
+            Project base = project("Base");
+
+            ActionResult result = actions.create(ALEX, "Muralla", ICON, false, base.id());
+
+            assertSuccess("Tarea \"Muralla\" creada en \"Base\".", result);
+            assertEquals(base.id(), result.task().project());
+        }
+
+        @Test
+        void anyoneMovesATask() {
+            Project base = project("Base");
+            Task wall = create(ALEX, "Muralla");
+
+            ActionResult result = actions.moveTask(STEVE, wall.id(), base.id());
+
+            assertSuccess("\"Muralla\" ahora está en el proyecto \"Base\".", result);
+            assertEquals(base.id(), result.task().project());
+        }
+
+        @Test
+        void movingToItsOwnProjectIsRejected() {
+            Task wall = create(ALEX, "Muralla");
+
+            assertFailure("\"Muralla\" ya está en el proyecto \"General\".", actions.moveTask(ALEX, wall.id(), Project.GENERAL_ID));
+        }
+
+        @Test
+        void staleProjectIdIsReported() {
+            Project base = project("Base");
+            Task wall = create(ALEX, "Muralla");
+            actions.removeProject(ADMIN, base.id());
+
+            assertFailure(TaskActions.PROJECT_GONE, actions.moveTask(ALEX, wall.id(), base.id()));
+            assertFailure(TaskActions.PROJECT_GONE, actions.create(ALEX, "Torre", ICON, false, base.id()));
+            assertFailure(TaskActions.PROJECT_GONE, actions.renameProject(ALEX, base.id(), "Otra"));
+            assertTrue(service.findByTitle("Torre").isEmpty());
+        }
+
+        @Test
+        void anyoneHidesAndShowsResolvedTasks() {
+            Project base = project("Base");
+
+            ActionResult hidden = actions.setHideResolved(STEVE, base.id(), true);
+            assertSuccess("\"Base\" ahora oculta las ramas terminadas.", hidden);
+            assertEquals(List.of(TaskActions.HIDE_RESOLVED_NOTE), hidden.details());
+            assertTrue(service.project(base.id()).orElseThrow().hideResolved());
+
+            assertSuccess("\"Base\" ahora muestra todas las tareas resueltas.", actions.setHideResolved(STEVE, base.id(), false));
+            assertFalse(service.project(base.id()).orElseThrow().hideResolved());
+        }
+
+        @Test
+        void hidingTwiceSaysItAlreadyWas() {
+            actions.setHideResolved(ALEX, Project.GENERAL_ID, true);
+
+            assertSuccess("\"General\" ya ocultaba las ramas terminadas.", actions.setHideResolved(ALEX, Project.GENERAL_ID, true));
+            assertSuccess("\"Base\" ya mostraba todas las tareas resueltas.",
+                    actions.setHideResolved(ALEX, project("Base").id(), false));
+        }
+
+        @Test
+        void unknownProjectMessage() {
+            assertEquals("No existe el proyecto \"Nada\".", TaskActions.unknownProject("Nada"));
         }
     }
 

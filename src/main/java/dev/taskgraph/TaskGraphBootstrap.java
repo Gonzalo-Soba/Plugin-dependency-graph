@@ -44,10 +44,17 @@ public final class TaskGraphBootstrap implements PluginBootstrap {
                                 .body(List.of(DialogBody.plainMessage(Component.text(
                                         "Abrí la lista para ver, crear y resolver las tareas comunales.", NamedTextColor.GRAY))))
                                 .build())
-                        .type(DialogType.notice(ActionButton.builder(Component.text("Abrir lista", NamedTextColor.GREEN))
-                                .width(200)
-                                .action(DialogAction.customClick(QuickAccess.OPEN_LIST, null))
-                                .build()))));
+                        .type(DialogType.multiAction(List.of(
+                                        ActionButton.builder(Component.text("Abrir lista", NamedTextColor.GREEN))
+                                                .width(200)
+                                                .action(DialogAction.customClick(QuickAccess.OPEN_LIST, null))
+                                                .build(),
+                                        ActionButton.builder(Component.text("Nueva tarea", NamedTextColor.GOLD))
+                                                .width(200)
+                                                .action(DialogAction.customClick(QuickAccess.NEW_TASK, null))
+                                                .build()))
+                                .columns(1)
+                                .build())));
 
         context.getLifecycleManager().registerEventHandler(LifecycleEvents.TAGS.postFlatten(RegistryKey.DIALOG), event -> {
             event.registrar().addToTag(DialogTagKeys.QUICK_ACTIONS, Set.of(DIALOG_KEY));

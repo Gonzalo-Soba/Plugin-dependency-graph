@@ -17,3 +17,8 @@ dependencies:
       load: BEFORE
       required: true
       join-classpath: true
+    # Optional: only the "+ Tarea" and "+ Proyecto" tabs use it (dev.taskgraph.packet).
+    packetevents:
+      load: BEFORE
+      required: false
+      join-classpath: true

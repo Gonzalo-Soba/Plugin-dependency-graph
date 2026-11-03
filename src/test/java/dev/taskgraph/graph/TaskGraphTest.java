@@ -183,6 +183,101 @@ class TaskGraphTest {
     }
 
     @Nested
+    class Unlocking {
+
+        @Test
+        void resolvingTheLastPendingDependencyUnlocksTheTask() {
+            createAll("a", "b", "c");
+            graph.addDependency("c", "a");
+            graph.addDependency("c", "b");
+            graph.resolve("a");
+            TaskGraph before = graph.copy();
+
+            graph.resolve("b");
+
+            assertEquals(List.of("c"), graph.unlockedSince(before).stream().map(Task::id).toList());
+        }
+
+        @Test
+        void taskWithAnotherPendingDependencyStaysBlocked() {
+            createAll("a", "b", "c");
+            graph.addDependency("c", "a");
+            graph.addDependency("c", "b");
+            TaskGraph before = graph.copy();
+
+            graph.resolve("a");
+
+            assertTrue(graph.unlockedSince(before).isEmpty());
+        }
+
+        @Test
+        void removingTheBlockingDependencyUnlocks() {
+            createAll("a", "b");
+            graph.addDependency("b", "a");
+            TaskGraph before = graph.copy();
+
+            graph.removeDependency("b", "a");
+
+            assertEquals(List.of("b"), graph.unlockedSince(before).stream().map(Task::id).toList());
+        }
+
+        @Test
+        void newTasksAndResolvedOnesAreNotUnlocked() {
+            createAll("a");
+            TaskGraph before = graph.copy();
+
+            graph.create("b", ICON);
+            graph.resolve("a");
+
+            assertTrue(graph.unlockedSince(before).isEmpty());
+        }
+
+        @Test
+        void severalAreListedInCreationOrder() {
+            createAll("a", "c", "b");
+            graph.addDependency("b", "a");
+            graph.addDependency("c", "a");
+            TaskGraph before = graph.copy();
+
+            graph.resolve("a");
+
+            assertEquals(List.of("c", "b"), graph.unlockedSince(before).stream().map(Task::id).toList());
+        }
+    }
+
+    @Nested
+    class Sizes {
+
+        @Test
+        void newTasksAreSmall() {
+            assertEquals(TaskSize.SMALL, graph.create("a", ICON).size());
+        }
+
+        @Test
+        void sizeChangesAndKeepsTheRest() {
+            createAll("a", "b");
+            graph.addDependency("b", "a");
+            graph.resolve("a");
+
+            Task large = graph.setSize("b", TaskSize.LARGE);
+
+            assertEquals(TaskSize.LARGE, large.size());
+            assertEquals(List.of("a"), large.dependencies());
+            assertEquals(TaskSize.LARGE, graph.get("b").orElseThrow().size());
+        }
+
+        @Test
+        void missingSizeIsSmall() {
+            assertEquals(TaskSize.SMALL, new Task("a", "A", "", ICON, List.of(), null, false, null, null, null).size());
+        }
+
+        @Test
+        void unknownTaskIsRejected() {
+            assertRejected(Reason.NOT_FOUND, () -> graph.setSize("ghost", TaskSize.MEDIUM));
+        }
+    }
+
+    @Nested
     class Dependencies {
 
         @Test
@@ -192,8 +287,28 @@ class TaskGraphTest {
             Task task = graph.addDependency("c", "a");
 
             assertEquals(List.of("b", "a"), task.dependencies());
-            assertEquals("b", task.visualParent().orElseThrow());
-            assertEquals(List.of("a"), task.extraRequirements());
+            assertEquals("b", task.visualParent(Set.of("a", "b", "c")).orElseThrow());
+            assertEquals(List.of("a"), task.extraRequirements(Set.of("a", "b", "c")));
+        }
+
+        @Test
+        void visualParentIsTheFirstDrawnDependency() {
+            createAll("a", "b", "c");
+            graph.addDependency("c", "b");
+            Task task = graph.addDependency("c", "a");
+
+            assertEquals("a", task.visualParent(Set.of("a", "c")).orElseThrow());
+            assertEquals(List.of("b"), task.extraRequirements(Set.of("a", "c")));
+        }
+
+        @Test
+        void withoutDrawnDependenciesEveryDependencyIsListed() {
+            createAll("a", "b", "c");
+            graph.addDependency("c", "b");
+            Task task = graph.addDependency("c", "a");
+
+            assertTrue(task.visualParent(Set.of("c")).isEmpty());
+            assertEquals(List.of("b", "a"), task.extraRequirements(Set.of("c")));
         }
 
         @Test
@@ -221,8 +336,8 @@ class TaskGraphTest {
             createAll("a");
 
             Task task = graph.get("a").orElseThrow();
-            assertTrue(task.visualParent().isEmpty());
-            assertTrue(task.extraRequirements().isEmpty());
+            assertTrue(task.visualParent(Set.of("a")).isEmpty());
+            assertTrue(task.extraRequirements(Set.of("a")).isEmpty());
         }
 
         @Test
@@ -275,7 +390,7 @@ class TaskGraphTest {
             Task task = graph.removeDependency("d", "a");
 
             assertEquals(List.of("b", "c"), task.dependencies());
-            assertEquals("b", task.visualParent().orElseThrow());
+            assertEquals("b", task.visualParent(Set.of("a", "b", "c", "d")).orElseThrow());
         }
 
         @Test
@@ -283,7 +398,7 @@ class TaskGraphTest {
             createAll("a", "b");
             graph.addDependency("b", "a");
 
-            assertTrue(graph.removeDependency("b", "a").visualParent().isEmpty());
+            assertTrue(graph.removeDependency("b", "a").visualParent(Set.of("a", "b")).isEmpty());
             assertTrue(graph.dependents("a").isEmpty());
         }
 

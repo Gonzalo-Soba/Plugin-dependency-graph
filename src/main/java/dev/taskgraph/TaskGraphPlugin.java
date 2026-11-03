@@ -3,14 +3,18 @@ package dev.taskgraph;
 import com.fren_gor.ultimateAdvancementAPI.UltimateAdvancementAPI;
 import dev.taskgraph.action.TaskActions;
 import dev.taskgraph.advancement.ProgressSynchronizer;
+import dev.taskgraph.advancement.TabMemory;
 import dev.taskgraph.advancement.TaskTabPublisher;
 import dev.taskgraph.advancement.TaskTabRenderer;
 import dev.taskgraph.command.TaskCommand;
 import dev.taskgraph.command.TasksCommand;
+import dev.taskgraph.dialog.IconPicker;
 import dev.taskgraph.dialog.TaskDialogs;
 import dev.taskgraph.graph.TaskGraph;
+import dev.taskgraph.listener.NewTabListener;
 import dev.taskgraph.listener.PlayerSyncListener;
 import dev.taskgraph.listener.QuickAccessListener;
+import dev.taskgraph.packet.TabPackets;
 import dev.taskgraph.service.TaskService;
 import dev.taskgraph.storage.JsonTaskStore;
 import dev.taskgraph.storage.TaskStoreException;
@@ -21,9 +25,12 @@ import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.logging.Level;
 
 public final class TaskGraphPlugin extends JavaPlugin {
+
+    private TabPackets tabPackets;
 
     @Override
     public void onEnable() {
@@ -33,7 +40,7 @@ public final class TaskGraphPlugin extends JavaPlugin {
             return;
         }
 
-        JsonTaskStore store = new JsonTaskStore(getDataPath().resolve("tasks.json"));
+        JsonTaskStore store = new JsonTaskStore(getDataPath().resolve("tasks.json"), getLogger());
         TaskGraph graph;
         try {
             graph = store.load();
@@ -43,10 +50,16 @@ public final class TaskGraphPlugin extends JavaPlugin {
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
-        getLogger().info("Loaded " + graph.size() + " tasks");
+        getLogger().info("Loaded " + graph.size() + " tasks in " + graph.projects().size() + " projects");
+
+        // PacketEvents is optional: without it there are no "+" tabs, and everything else works the same.
+        Optional<TabPackets> packets = TabPackets.load(getLogger());
+        getLogger().info(packets.isPresent()
+                ? "PacketEvents found: the \"+ Tarea\" and \"+ Proyecto\" tabs are on"
+                : "PacketEvents not found: the \"+\" tabs are off");
 
         UltimateAdvancementAPI api = UltimateAdvancementAPI.getInstance(this);
-        TaskTabPublisher publisher = new TaskTabPublisher(new TaskTabRenderer(api), new ProgressSynchronizer(getLogger()));
+        TaskTabPublisher publisher = new TaskTabPublisher(new TaskTabRenderer(api, packets.isPresent()), new ProgressSynchronizer(getLogger()));
         TaskService service = new TaskService(store, graph, publisher::publish);
         service.start();
         getServer().getPluginManager().registerEvents(new PlayerSyncListener(publisher), this);
@@ -54,9 +67,22 @@ public final class TaskGraphPlugin extends JavaPlugin {
         TaskActions actions = new TaskActions(service,
                 message -> getServer().broadcast(Component.text(message, NamedTextColor.GREEN)), getLogger());
         TaskCommand command = new TaskCommand(service, actions);
-        TaskDialogs dialogs = new TaskDialogs(this, service, actions);
+        IconPicker iconPicker = new IconPicker(this);
+        getServer().getPluginManager().registerEvents(iconPicker, this);
+        List<String> unknownIcons = IconPicker.unknownCatalogKeys();
+        if (!unknownIcons.isEmpty()) {
+            getLogger().warning("The icon picker skips items this version doesn't have: " + String.join(", ", unknownIcons));
+        }
+        TaskDialogs dialogs = new TaskDialogs(this, service, actions, iconPicker);
         TasksCommand tasksCommand = new TasksCommand(dialogs);
-        getServer().getPluginManager().registerEvents(new QuickAccessListener(this, dialogs), this);
+        TabMemory tabMemory = new TabMemory();
+        getServer().getPluginManager().registerEvents(new QuickAccessListener(this, dialogs, service, tabMemory), this);
+        packets.ifPresent(found -> {
+            NewTabListener newTabs = new NewTabListener(this, service, dialogs, found, tabMemory);
+            getServer().getPluginManager().registerEvents(newTabs, this);
+            found.start(newTabs);
+            tabPackets = found;
+        });
         getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, event -> {
             event.registrar().register(command.build(), TaskCommand.DESCRIPTION, List.of());
             event.registrar().register(tasksCommand.build(), TasksCommand.DESCRIPTION, List.of());
@@ -77,6 +103,10 @@ public final class TaskGraphPlugin extends JavaPlugin {
     @Override
     public void onDisable() {
         // UAAPI unregisters this plugin's tabs on PluginDisableEvent.
+        if (tabPackets != null) {
+            tabPackets.stop();
+            tabPackets = null;
+        }
         getLogger().info("TaskGraph disabled");
     }
 }
