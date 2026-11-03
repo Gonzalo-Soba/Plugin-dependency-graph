@@ -188,6 +188,15 @@ public final class TaskActions {
         });
     }
 
+    /** Open to everyone, like resolving. The announcement to everyone replaces a personal message. */
+    public ActionResult reopen(Actor actor, String taskId) {
+        return withTask(taskId, task -> {
+            Task reopened = service.reopen(task.id());
+            announcer.accept("↺ " + actor.name() + " reabrió la tarea " + quoted(task.title()));
+            return ActionResult.success(reopened, null);
+        });
+    }
+
     public ActionResult moveTask(Actor actor, String taskId, String projectId) {
         return withTask(taskId, task -> withProject(task, projectId, project -> ActionResult.success(
                 service.moveTask(task.id(), project.id()),

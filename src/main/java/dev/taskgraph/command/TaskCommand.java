@@ -98,6 +98,8 @@ public final class TaskCommand {
                         .then(lastTask(TASK).executes(this::release)))
                 .then(Commands.literal("resolver")
                         .then(lastTask(TASK).executes(this::resolve)))
+                .then(Commands.literal("reabrir")
+                        .then(lastTask(TASK).executes(this::reopen)))
                 .then(Commands.literal("info")
                         .then(lastTask(TASK).executes(this::info)))
                 .then(Commands.literal("borrar")
@@ -214,6 +216,7 @@ public final class TaskCommand {
                 "asignar <título>",
                 "soltar <título> — deja de estar asignada a vos",
                 "resolver <título>",
+                "reabrir <título> — deshace la resolución",
                 "info <título>",
                 "borrar <título>",
                 "mover \"<título>\" <proyecto>",
@@ -300,6 +303,10 @@ public final class TaskCommand {
 
     private int resolve(CommandContext<CommandSourceStack> context) {
         return withTask(context, TASK, (actor, task) -> actions.resolve(actor, task.id()));
+    }
+
+    private int reopen(CommandContext<CommandSourceStack> context) {
+        return withTask(context, TASK, (actor, task) -> actions.reopen(actor, task.id()));
     }
 
     private int info(CommandContext<CommandSourceStack> context) {

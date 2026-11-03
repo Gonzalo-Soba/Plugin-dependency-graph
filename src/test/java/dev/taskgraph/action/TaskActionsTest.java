@@ -332,6 +332,35 @@ class TaskActionsTest {
         }
 
         @Test
+        void reopenAnnouncesToEveryoneAndAnyoneCanDoIt() {
+            Task task = create(ALEX, "Mesa");
+            actions.resolve(ALEX, task.id());
+            announcements.clear();
+
+            ActionResult result = actions.reopen(STEVE, task.id());
+
+            assertTrue(result.success());
+            assertNull(result.message());
+            assertFalse(result.task().resolved());
+            assertEquals(List.of("↺ Steve reabrió la tarea \"Mesa\""), announcements);
+        }
+
+        @Test
+        void reopenIsRejectedWhileAResolvedTaskDependsOnIt() {
+            Task wood = create(ALEX, "Madera");
+            Task table = create(ALEX, "Mesa");
+            actions.addDependency(ALEX, table.id(), wood.id());
+            actions.resolve(ALEX, wood.id());
+            actions.resolve(ALEX, table.id());
+            announcements.clear();
+
+            assertFailure("No se puede reabrir \"Madera\": dependen de ella \"Mesa\", que ya están resueltas. Reabrilas primero.",
+                    actions.reopen(STEVE, wood.id()));
+            assertFailure("\"Silla\" no está resuelta.", actions.reopen(STEVE, create(ALEX, "Silla").id()));
+            assertTrue(announcements.isEmpty());
+        }
+
+        @Test
         void recordsWhoResolvedAndWhen() {
             Task task = create(ALEX, "Mesa");
 

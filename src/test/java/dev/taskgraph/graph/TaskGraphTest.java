@@ -516,6 +516,59 @@ class TaskGraphTest {
     }
 
     @Nested
+    class Reopen {
+
+        @Test
+        void makesTheTaskPendingAndForgetsWhoResolvedIt() {
+            createAll("a");
+            graph.resolve("a", new PlayerRef(UUID.randomUUID(), "Steve"), Instant.parse("2026-11-03T18:20:00Z"));
+
+            Task reopened = graph.reopen("a");
+
+            assertFalse(reopened.resolved());
+            assertTrue(reopened.resolvedByOptional().isEmpty());
+            assertTrue(reopened.resolvedAtOptional().isEmpty());
+            assertEquals(TaskStatus.AVAILABLE, graph.status("a"));
+        }
+
+        @Test
+        void rejectsAPendingTask() {
+            createAll("a");
+
+            assertRejected(Reason.NOT_RESOLVED, () -> graph.reopen("a"));
+        }
+
+        @Test
+        void rejectsWhileAResolvedTaskDependsOnItAndListsOnlyThoseResolved() {
+            createAll("a", "b", "c");
+            graph.addDependency("b", "a");
+            graph.addDependency("c", "a");
+            graph.resolve("a");
+            graph.resolve("b");
+
+            TaskGraphException exception = assertRejected(Reason.RESOLVED_DEPENDENTS, () -> graph.reopen("a"));
+            assertEquals(List.of("b"), exception.relatedIds());
+            assertTrue(graph.get("a").orElseThrow().resolved());
+
+            graph.reopen("b");
+            graph.reopen("a");
+            assertEquals(TaskStatus.BLOCKED, graph.status("b"));
+        }
+
+        @Test
+        void aReopenedTaskIsNoLongerHidden() {
+            createAll("a");
+            graph.setHideResolved(Project.GENERAL_ID, true);
+            graph.resolve("a");
+            assertTrue(graph.isHidden("a"));
+
+            graph.reopen("a");
+
+            assertFalse(graph.isHidden("a"));
+        }
+    }
+
+    @Nested
     class Remove {
 
         @Test
