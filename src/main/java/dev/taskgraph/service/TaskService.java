@@ -146,6 +146,10 @@ public final class TaskService {
         return apply(next -> next.resolve(id, by, clock.instant()));
     }
 
+    public Task reopen(String id) {
+        return apply(next -> next.reopen(id));
+    }
+
     public Task remove(String id) {
         return apply(next -> next.remove(id));
     }

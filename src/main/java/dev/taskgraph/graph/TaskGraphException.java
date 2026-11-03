@@ -25,6 +25,9 @@ public final class TaskGraphException extends RuntimeException {
         ALREADY_RESOLVED,
         UNRESOLVED_DEPENDENCIES,
         HAS_DEPENDENTS,
+        NOT_RESOLVED,
+        /** Related ids are the resolved tasks that depend on it. */
+        RESOLVED_DEPENDENTS,
         /** Subject is the project id. */
         PROJECT_NOT_FOUND,
         /** Subject is the id of the project that already has the title. */

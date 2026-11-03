@@ -307,6 +307,22 @@ public final class TaskGraph {
         return replace(task.withResolution(by, at));
     }
 
+    /**
+     * Undoes a resolution. Rejected while a resolved task depends on it, so a resolved task never has a
+     * pending dependency.
+     */
+    public Task reopen(String id) {
+        Task task = require(id);
+        if (!task.resolved()) {
+            throw new TaskGraphException(Reason.NOT_RESOLVED, id);
+        }
+        List<String> resolvedDependents = dependents(id).stream().filter(dependent -> tasks.get(dependent).resolved()).toList();
+        if (!resolvedDependents.isEmpty()) {
+            throw new TaskGraphException(Reason.RESOLVED_DEPENDENTS, id, resolvedDependents);
+        }
+        return replace(task.reopened());
+    }
+
     public Task remove(String id) {
         require(id);
         List<String> dependents = dependents(id);

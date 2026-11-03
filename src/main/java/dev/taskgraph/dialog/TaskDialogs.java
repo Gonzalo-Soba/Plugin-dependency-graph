@@ -312,6 +312,14 @@ public final class TaskDialogs {
                         : result);
             })));
         }
+        if (task.resolved()) {
+            buttons.add(actionButton("Reabrir", NamedTextColor.YELLOW, onClick(viewer -> {
+                ActionResult result = actions.reopen(Senders.actor(viewer), taskId);
+                openDetail(viewer, taskId, result.success()
+                        ? new ActionResult(true, result.task(), "Reabriste " + quoted(task.title()) + ".", List.of())
+                        : result);
+            })));
+        }
         if (!graph.dependencyCandidates(taskId).isEmpty()) {
             buttons.add(actionButton("Agregar dependencia", NamedTextColor.WHITE,
                     onClick(viewer -> openAddDependency(viewer, taskId, null))));

@@ -149,6 +149,11 @@ public record Task(
         return new Task(id, title, description, icon, dependencies, assignee, true, creator, project, size, by, at);
     }
 
+    /** Unresolved again; the constructor drops who resolved it and when. */
+    Task reopened() {
+        return new Task(id, title, description, icon, dependencies, assignee, false, creator, project, size);
+    }
+
     Task withSize(TaskSize newSize) {
         return new Task(id, title, description, icon, dependencies, assignee, resolved, creator, project, newSize, resolvedBy, resolvedAt);
     }

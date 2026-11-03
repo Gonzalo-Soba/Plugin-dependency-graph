@@ -42,6 +42,9 @@ public final class RejectionMessages {
             case ALREADY_RESOLVED -> task + " ya está resuelta.";
             case UNRESOLVED_DEPENDENCIES -> "No se puede resolver " + task + ": faltan " + list(related) + ".";
             case HAS_DEPENDENTS -> "No se puede borrar " + task + ": dependen de ella " + list(related) + ".";
+            case NOT_RESOLVED -> task + " no está resuelta.";
+            case RESOLVED_DEPENDENTS -> "No se puede reabrir " + task + ": dependen de ella " + list(related)
+                    + ", que ya están resueltas. Reabrilas primero.";
             case PROJECT_NOT_FOUND -> "No existe el proyecto " + project + ".";
             case DUPLICATE_PROJECT_TITLE -> "Ya existe un proyecto llamado " + project + ".";
             case GENERAL_PROJECT -> "El proyecto " + project + " no se puede borrar.";
