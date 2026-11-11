@@ -39,14 +39,28 @@ public final class TaskTexts {
 
     /** "✔ Madera, ✘ Piedra", or "nada" when empty. Ids that no longer exist are shown as is. */
     public static String taskList(TaskGraph graph, List<String> ids) {
+        return taskLinks(graph, ids).text();
+    }
+
+    /** {@link #taskList} with each existing task as a link. */
+    public static LinkedText taskLinks(TaskGraph graph, List<String> ids) {
+        LinkedText.Builder text = LinkedText.builder();
         if (ids.isEmpty()) {
-            return "nada";
+            return text.text("nada").build();
         }
-        return String.join(", ", ids.stream()
-                .map(id -> graph.get(id)
-                        .map(task -> (task.resolved() ? "✔ " : "✘ ") + task.title())
-                        .orElse(id))
-                .toList());
+        for (int i = 0; i < ids.size(); i++) {
+            if (i > 0) {
+                text.text(", ");
+            }
+            String id = ids.get(i);
+            Optional<Task> task = graph.get(id);
+            if (task.isPresent()) {
+                text.link(id, (task.get().resolved() ? "✔ " : "✘ ") + task.get().title());
+            } else {
+                text.text(id);
+            }
+        }
+        return text.build();
     }
 
     /**
@@ -78,14 +92,17 @@ public final class TaskTexts {
      * Announcement for tasks a change unlocked: "▶ Ahora se puede hacer: "Horno"." or, for several,
      * "▶ Ahora se pueden hacer: ...". Tasks outside General name their project.
      */
-    public static String unlocked(TaskGraph graph, List<Task> tasks) {
-        List<String> names = tasks.stream()
-                .map(task -> "\"" + task.title() + "\"" + (Project.GENERAL_ID.equals(task.project())
-                        ? ""
-                        : " (en " + graph.project(task.project()).map(Project::title).orElse(task.project()) + ")"))
-                .toList();
-        return marker(TaskStatus.AVAILABLE) + (names.size() == 1 ? " Ahora se puede hacer: " : " Ahora se pueden hacer: ")
-                + String.join(", ", names) + ".";
+    public static LinkedText unlocked(TaskGraph graph, List<Task> tasks) {
+        LinkedText.Builder text = LinkedText.builder()
+                .text(marker(TaskStatus.AVAILABLE) + (tasks.size() == 1 ? " Ahora se puede hacer: " : " Ahora se pueden hacer: "));
+        for (int i = 0; i < tasks.size(); i++) {
+            Task task = tasks.get(i);
+            text.text(i > 0 ? ", " : "").quoted(task);
+            if (!Project.GENERAL_ID.equals(task.project())) {
+                text.text(" (en " + graph.project(task.project()).map(Project::title).orElse(task.project()) + ")");
+            }
+        }
+        return text.text(".").build();
     }
 
     /** "Chica", "Mediana" or "Grande". */

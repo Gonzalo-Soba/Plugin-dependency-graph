@@ -8,9 +8,11 @@ import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import com.mojang.brigadier.tree.LiteralCommandNode;
 import dev.taskgraph.action.ActionResult;
+import dev.taskgraph.action.LinkedText;
 import dev.taskgraph.action.TaskActions;
 import dev.taskgraph.action.TaskTexts;
 import dev.taskgraph.advancement.TaskIcons;
+import dev.taskgraph.dialog.TaskLinks;
 import dev.taskgraph.graph.IconKeys;
 import dev.taskgraph.graph.PlayerRef;
 import dev.taskgraph.graph.Project;
@@ -57,11 +59,16 @@ public final class TaskCommand {
 
     private final TaskService service;
     private final TaskActions actions;
+    private final TaskLinks links;
 
-    /** @param service read-only queries (suggestions, info); changes go through {@code actions} */
-    public TaskCommand(TaskService service, TaskActions actions) {
+    /**
+     * @param service read-only queries (suggestions, info); changes go through {@code actions}
+     * @param links   makes the tasks named by {@code info} clickable
+     */
+    public TaskCommand(TaskService service, TaskActions actions, TaskLinks links) {
         this.service = service;
         this.actions = actions;
+        this.links = links;
     }
 
     public LiteralCommandNode<CommandSourceStack> build() {
@@ -317,7 +324,7 @@ public final class TaskCommand {
         }
         Task task = found.get();
         TaskGraph graph = service.snapshot();
-        sender.sendMessage(Component.text(task.title(), NamedTextColor.GOLD));
+        sender.sendMessage(links.component(LinkedText.builder().link(task.id(), task.title()).build(), NamedTextColor.GOLD));
         if (!task.description().isEmpty()) {
             sender.sendMessage(Component.text(task.description(), NamedTextColor.GRAY));
         }
@@ -332,8 +339,10 @@ public final class TaskCommand {
                 + task.creatorOptional().map(PlayerRef::name).orElse("desconocido"), NamedTextColor.GRAY));
         sender.sendMessage(Component.text("Asignada a: "
                 + task.assigneeOptional().map(PlayerRef::name).orElse("nadie"), NamedTextColor.AQUA));
-        sender.sendMessage(Component.text("Depende de: " + TaskTexts.taskList(graph, task.dependencies()), NamedTextColor.GRAY));
-        sender.sendMessage(Component.text("La necesitan: " + TaskTexts.taskList(graph, graph.dependents(task.id())), NamedTextColor.GRAY));
+        sender.sendMessage(links.component(LinkedText.builder().text("Depende de: ")
+                .append(TaskTexts.taskLinks(graph, task.dependencies())).build(), NamedTextColor.GRAY));
+        sender.sendMessage(links.component(LinkedText.builder().text("La necesitan: ")
+                .append(TaskTexts.taskLinks(graph, graph.dependents(task.id()))).build(), NamedTextColor.GRAY));
         sender.sendMessage(Component.text("Ícono: " + IconKeys.display(task.icon()), NamedTextColor.DARK_GRAY));
         return Command.SINGLE_SUCCESS;
     }
