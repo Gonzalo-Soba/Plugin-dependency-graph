@@ -124,7 +124,7 @@ public final class TaskDialogs {
             buttons.add(button(Component.text(project.title() + " (" + resolved + "/" + tasks.size() + ")", NamedTextColor.WHITE),
                     tooltip, LIST_BUTTON_WIDTH, onClick(viewer -> openTasks(viewer, project.id(), null))));
         }
-        buttons.add(button(Component.text("+ Nuevo proyecto", NamedTextColor.GOLD), null, LIST_BUTTON_WIDTH,
+        buttons.add(button(DialogIcons.label(DialogIcons.NEW, "Nuevo proyecto", NamedTextColor.GOLD), null, LIST_BUTTON_WIDTH,
                 onClick(viewer -> openCreateProject(viewer, back -> openProjects(back, null), null, ""))));
 
         show(player, Component.text("Tareas del servidor"), body, List.of(),
@@ -176,7 +176,7 @@ public final class TaskDialogs {
                 openRenameProject(viewer, projectId, result, newTitle);
             }
         }));
-        ActionButton cancel = actionButton("Cancelar", NamedTextColor.WHITE, onClick(viewer -> openTasks(viewer, projectId, null)));
+        ActionButton cancel = actionButton("Cancelar", NamedTextColor.WHITE, onClick(viewer -> openProjectOptions(viewer, projectId, null)));
 
         show(player, Component.text("Renombrar proyecto"), feedback(feedback), List.of(titleInput(title)),
                 DialogType.confirmation(save, cancel));
@@ -193,10 +193,10 @@ public final class TaskDialogs {
             if (result.success()) {
                 openProjects(viewer, result);
             } else {
-                openTasks(viewer, projectId, result);
+                openProjectOptions(viewer, projectId, result);
             }
         }));
-        ActionButton no = actionButton("No", NamedTextColor.WHITE, onClick(viewer -> openTasks(viewer, projectId, null)));
+        ActionButton no = actionButton("No", NamedTextColor.WHITE, onClick(viewer -> openProjectOptions(viewer, projectId, null)));
 
         show(player, Component.text("Borrar proyecto"),
                 List.of(text(Component.text("¿Borrar el proyecto " + quoted(project.get().title())
@@ -217,20 +217,29 @@ public final class TaskDialogs {
         List<Task> tasks = graph.listOrder().stream().filter(task -> task.project().equals(projectId)).toList();
 
         List<DialogBody> body = new ArrayList<>(feedback(feedback));
+        if (tasks.isEmpty()) {
+            body.add(text(Component.text("Todavía no hay tareas en este proyecto. Creá la primera con «Nueva tarea».", NamedTextColor.GRAY)));
+        } else {
+            long resolved = tasks.stream().filter(Task::resolved).count();
+            body.add(text(Component.text(resolved + " de " + tasks.size() + " resueltas   ·   "
+                    + TaskTexts.marker(TaskStatus.AVAILABLE) + " disponible   "
+                    + TaskTexts.marker(TaskStatus.BLOCKED) + " bloqueada   "
+                    + TaskTexts.marker(TaskStatus.RESOLVED) + " resuelta", NamedTextColor.GRAY)));
+        }
         int hidden = graph.hiddenTasksIn(projectId).size();
         if (hidden > 0) {
             body.add(text(Component.text((hidden == 1 ? "1 resuelta oculta" : hidden + " resueltas ocultas")
                     + " en la pestaña de logros. Acá se listan igual.", NamedTextColor.DARK_GRAY)));
         }
-        if (tasks.isEmpty()) {
-            body.add(text(Component.text("Todavía no hay tareas en este proyecto. Creá la primera con «Nueva tarea».", NamedTextColor.GRAY)));
-        } else {
-            body.add(text(Component.text(TaskTexts.marker(TaskStatus.AVAILABLE) + " disponible   "
-                    + TaskTexts.marker(TaskStatus.BLOCKED) + " bloqueada   "
-                    + TaskTexts.marker(TaskStatus.RESOLVED) + " resuelta", NamedTextColor.GRAY)));
-        }
 
+        // Fixed first row, as wide as the tasks: the dialog grid can't fit a row of narrower buttons.
         List<ActionButton> buttons = new ArrayList<>();
+        buttons.add(button(DialogIcons.label(DialogIcons.NEW, "Nueva tarea", NamedTextColor.GOLD), null, LIST_BUTTON_WIDTH,
+                onClick(viewer -> openCreate(viewer, projectId, back -> openTasks(back, projectId, null), null, "", "", ""))));
+        buttons.add(button(Component.text("⚙ Opciones", NamedTextColor.WHITE),
+                Component.text("Renombrar el proyecto, ocultar resueltas" + (canRemove(project, player) ? ", borrar" : ""),
+                        NamedTextColor.GRAY),
+                LIST_BUTTON_WIDTH, onClick(viewer -> openProjectOptions(viewer, projectId, null))));
         for (Task task : tasks) {
             TaskStatus status = graph.status(task.id());
             Component tooltip = Component.join(JoinConfiguration.newlines(),
@@ -239,27 +248,53 @@ public final class TaskDialogs {
             buttons.add(button(Component.text(TaskTexts.marker(status) + " " + task.title(), color(status)),
                     tooltip, LIST_BUTTON_WIDTH, onClick(viewer -> openDetail(viewer, task.id(), null))));
         }
-        buttons.add(button(Component.text("+ Nueva tarea", NamedTextColor.GOLD), null, LIST_BUTTON_WIDTH,
-                onClick(viewer -> openCreate(viewer, projectId, back -> openTasks(back, projectId, null), null, "", "", ""))));
-        buttons.add(button(Component.text("Renombrar proyecto", NamedTextColor.WHITE), null, LIST_BUTTON_WIDTH,
-                onClick(viewer -> openRenameProject(viewer, projectId, null, project.title()))));
-        boolean hide = !project.hideResolved();
-        buttons.add(button(Component.text(hide ? "Ocultar resueltas" : "Mostrar resueltas", NamedTextColor.WHITE),
-                Component.text(hide
-                        ? "Saca de la pestaña las tareas resueltas de las que ya no depende nada pendiente."
-                        : "Vuelve a mostrar en la pestaña todas las tareas resueltas.", NamedTextColor.GRAY),
-                LIST_BUTTON_WIDTH,
-                onClick(viewer -> openTasks(viewer, projectId, actions.setHideResolved(Senders.actor(viewer), projectId, hide)))));
-        if (!project.isGeneral() && TaskPermissions.canRemoveProject(Senders.actor(player))) {
-            buttons.add(button(Component.text("Borrar proyecto", NamedTextColor.RED), null, LIST_BUTTON_WIDTH,
-                    onClick(viewer -> openConfirmRemoveProject(viewer, projectId))));
-        }
 
         show(player, Component.text(project.title()), body, List.of(),
                 DialogType.multiAction(buttons)
                         .columns(LIST_COLUMNS)
                         .exitAction(button(Component.text("Volver"), null, ACTION_BUTTON_WIDTH, onClick(viewer -> openProjects(viewer, null))))
                         .build());
+    }
+
+    /** The project's settings, on their own screen so the task list only lists tasks. */
+    private void openProjectOptions(Player player, String projectId, ActionResult feedback) {
+        Optional<Project> found = service.project(projectId);
+        if (found.isEmpty()) {
+            openProjects(player, failure(TaskActions.PROJECT_GONE));
+            return;
+        }
+        Project project = found.get();
+
+        List<ActionButton> buttons = new ArrayList<>();
+        buttons.add(button(DialogIcons.label(DialogIcons.RENAME, "Renombrar proyecto", NamedTextColor.WHITE), null,
+                ACTION_BUTTON_WIDTH, onClick(viewer -> openRenameProject(viewer, projectId, null, project.title()))));
+        boolean hide = !project.hideResolved();
+        buttons.add(button(DialogIcons.label(DialogIcons.VISIBILITY, hide ? "Ocultar resueltas" : "Mostrar resueltas", NamedTextColor.WHITE),
+                Component.text(hide
+                        ? "Saca de la pestaña las tareas resueltas de las que ya no depende nada pendiente."
+                        : "Vuelve a mostrar en la pestaña todas las tareas resueltas.", NamedTextColor.GRAY),
+                ACTION_BUTTON_WIDTH,
+                onClick(viewer -> openProjectOptions(viewer, projectId, actions.setHideResolved(Senders.actor(viewer), projectId, hide)))));
+        if (canRemove(project, player)) {
+            buttons.add(button(DialogIcons.label(DialogIcons.DELETE, "Borrar proyecto", NamedTextColor.RED),
+                    Component.text("Solo se puede si ya no tiene tareas.", NamedTextColor.GRAY),
+                    ACTION_BUTTON_WIDTH, onClick(viewer -> openConfirmRemoveProject(viewer, projectId))));
+        }
+
+        List<DialogBody> body = new ArrayList<>(feedback(feedback));
+        body.add(text(Component.text(project.hideResolved()
+                ? "La pestaña oculta las ramas terminadas."
+                : "La pestaña muestra todas las tareas.", NamedTextColor.GRAY)));
+        show(player, Component.text("Opciones de " + project.title()), body, List.of(),
+                DialogType.multiAction(buttons)
+                        .columns(1)
+                        .exitAction(button(Component.text("Volver"), null, ACTION_BUTTON_WIDTH, onClick(viewer -> openTasks(viewer, projectId, null))))
+                        .build());
+    }
+
+    /** Only a hint for what to show; {@link TaskActions#removeProject} checks again when clicked. */
+    private static boolean canRemove(Project project, Player player) {
+        return !project.isGeneral() && TaskPermissions.canRemoveProject(Senders.actor(player));
     }
 
     // ---- Detail ----
