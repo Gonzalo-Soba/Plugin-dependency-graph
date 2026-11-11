@@ -13,6 +13,7 @@ import dev.taskgraph.graph.Task;
 import dev.taskgraph.graph.TaskGraph;
 import dev.taskgraph.graph.TaskPermissions;
 import dev.taskgraph.graph.TaskPermissions.Actor;
+import dev.taskgraph.graph.TaskSearch;
 import dev.taskgraph.graph.TaskSize;
 import dev.taskgraph.graph.TaskStatus;
 import dev.taskgraph.graph.Titles;
@@ -68,6 +69,7 @@ public final class TaskDialogs {
     private static final String TASK_INPUT = "tarea";
     private static final String PROJECT_INPUT = "proyecto";
     private static final String SIZE_INPUT = "tamano";
+    private static final String SEARCH_INPUT = "buscar";
     private static final int TITLE_MAX_LENGTH = 64;
     private static final int DESCRIPTION_MAX_LENGTH = 512;
     private static final int LIST_COLUMNS = 2;
@@ -111,7 +113,13 @@ public final class TaskDialogs {
         List<DialogBody> body = new ArrayList<>(feedback(feedback));
         body.add(text(Component.text("Elegí un proyecto. Cada uno es una pestaña en la pantalla de logros.", NamedTextColor.GRAY)));
 
+        // Fixed first row, as in a project's list: both buttons as wide as the projects.
         List<ActionButton> buttons = new ArrayList<>();
+        buttons.add(button(DialogIcons.label(DialogIcons.SEARCH, "Buscar tarea", NamedTextColor.AQUA),
+                Component.text("Por parte del título, en todos los proyectos", NamedTextColor.GRAY), LIST_BUTTON_WIDTH,
+                onClick(viewer -> openSearch(viewer, null, ""))));
+        buttons.add(button(DialogIcons.label(DialogIcons.NEW, "Nuevo proyecto", NamedTextColor.GOLD), null, LIST_BUTTON_WIDTH,
+                onClick(viewer -> openCreateProject(viewer, back -> openProjects(back, null), null, ""))));
         for (Project project : graph.projects()) {
             List<Task> tasks = graph.tasksIn(project.id());
             long resolved = tasks.stream().filter(Task::resolved).count();
@@ -122,8 +130,6 @@ public final class TaskDialogs {
             buttons.add(button(Component.text(project.title() + " (" + resolved + "/" + tasks.size() + ")", NamedTextColor.WHITE),
                     tooltip, LIST_BUTTON_WIDTH, onClick(viewer -> openTasks(viewer, project.id(), null))));
         }
-        buttons.add(button(DialogIcons.label(DialogIcons.NEW, "Nuevo proyecto", NamedTextColor.GOLD), null, LIST_BUTTON_WIDTH,
-                onClick(viewer -> openCreateProject(viewer, back -> openProjects(back, null), null, ""))));
 
         show(player, Component.text("Tareas del servidor"), body, List.of(),
                 DialogType.multiAction(buttons)
@@ -132,6 +138,68 @@ public final class TaskDialogs {
                         // click (it only closes dialog screens), leaving it up until it times out. closeInventory()
                         // closes whatever screen is open.
                         .exitAction(button(Component.text("Cerrar"), null, ACTION_BUTTON_WIDTH, onClick(Player::closeInventory)))
+                        .build());
+    }
+
+    // ---- Search ----
+
+    private void openSearch(Player player, ActionResult feedback, String typed) {
+        List<DialogBody> body = new ArrayList<>(feedback(feedback));
+        body.add(text(Component.text("Escribí parte del título. No importan mayúsculas ni tildes.", NamedTextColor.GRAY)));
+        TextDialogInput input = DialogInput.text(SEARCH_INPUT, Component.text("Buscar"))
+                .initial(typed)
+                .maxLength(TITLE_MAX_LENGTH)
+                .width(300)
+                .build();
+
+        ActionButton search = actionButton("Buscar", NamedTextColor.GREEN, onSubmit((viewer, response) -> {
+            String text = textOf(response, SEARCH_INPUT);
+            if (text.isBlank()) {
+                openSearch(viewer, failure("Escribí algo para buscar."), text);
+                return;
+            }
+            List<Task> found = TaskSearch.find(service.snapshot(), text);
+            if (found.isEmpty()) {
+                openSearch(viewer, failure("Ninguna tarea tiene " + quoted(Titles.clean(text)) + " en el título."), text);
+            } else if (found.size() == 1) {
+                openDetail(viewer, found.getFirst().id(), null);
+            } else {
+                openSearchResults(viewer, text);
+            }
+        }));
+        ActionButton back = actionButton("Volver", NamedTextColor.WHITE, onClick(viewer -> openProjects(viewer, null)));
+
+        show(player, Component.text("Buscar tarea"), body, List.of(input), DialogType.confirmation(search, back));
+    }
+
+    /** Searches again when shown, so the results are never stale. */
+    private void openSearchResults(Player player, String text) {
+        TaskGraph graph = service.snapshot();
+        List<Task> found = TaskSearch.find(graph, text);
+        if (found.size() < 2) {
+            // Something changed since the search: fall back to the single result or the search screen.
+            if (found.size() == 1) {
+                openDetail(player, found.getFirst().id(), null);
+            } else {
+                openSearch(player, failure("Ninguna tarea tiene " + quoted(Titles.clean(text)) + " en el título."), text);
+            }
+            return;
+        }
+        List<ActionButton> buttons = new ArrayList<>();
+        for (Task task : found) {
+            TaskStatus status = graph.status(task.id());
+            Component tooltip = Component.join(JoinConfiguration.newlines(),
+                    Component.text(TaskTexts.status(status), color(status)),
+                    Component.text("Proyecto: " + projectTitle(graph, task.project()), NamedTextColor.GRAY));
+            buttons.add(button(Component.text(TaskTexts.marker(status) + " " + task.title(), color(status)),
+                    tooltip, LIST_BUTTON_WIDTH, onClick(viewer -> openDetail(viewer, task.id(), null))));
+        }
+        show(player, Component.text("Buscar: " + Titles.clean(text)),
+                List.of(text(Component.text(found.size() + " tareas. El proyecto de cada una está en su tooltip.", NamedTextColor.GRAY))),
+                List.of(),
+                DialogType.multiAction(buttons)
+                        .columns(LIST_COLUMNS)
+                        .exitAction(button(Component.text("Volver"), null, ACTION_BUTTON_WIDTH, onClick(viewer -> openSearch(viewer, null, text))))
                         .build());
     }
 
