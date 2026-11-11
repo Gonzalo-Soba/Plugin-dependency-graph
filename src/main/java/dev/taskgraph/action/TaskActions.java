@@ -33,13 +33,14 @@ public final class TaskActions {
             "Una tarea resuelta se oculta de la pestaña cuando todo lo que depende de ella también está resuelto.";
 
     private final TaskService service;
-    private final Consumer<String> announcer;
+    private final Consumer<LinkedText> announcer;
     private final Logger logger;
 
     /**
-     * @param announcer sends a line to every online player (e.g. when a task is resolved)
+     * @param announcer sends a line to every online player (e.g. when a task is resolved); the tasks it
+     *                  names carry their ids, so the chat can link them
      */
-    public TaskActions(TaskService service, Consumer<String> announcer, Logger logger) {
+    public TaskActions(TaskService service, Consumer<LinkedText> announcer, Logger logger) {
         this.service = service;
         this.announcer = announcer;
         this.logger = logger;
@@ -183,7 +184,7 @@ public final class TaskActions {
     public ActionResult resolve(Actor actor, String taskId) {
         return withTask(taskId, task -> {
             Task resolved = service.resolve(task.id(), actor.playerRef().orElse(null));
-            announcer.accept("✔ " + actor.name() + " resolvió la tarea " + quoted(task.title()));
+            announcer.accept(LinkedText.builder().text("✔ " + actor.name() + " resolvió la tarea ").quoted(task).build());
             return ActionResult.success(resolved, null);
         });
     }
@@ -192,7 +193,7 @@ public final class TaskActions {
     public ActionResult reopen(Actor actor, String taskId) {
         return withTask(taskId, task -> {
             Task reopened = service.reopen(task.id());
-            announcer.accept("↺ " + actor.name() + " reabrió la tarea " + quoted(task.title()));
+            announcer.accept(LinkedText.builder().text("↺ " + actor.name() + " reabrió la tarea ").quoted(task).build());
             return ActionResult.success(reopened, null);
         });
     }

@@ -10,6 +10,7 @@ import dev.taskgraph.command.TaskCommand;
 import dev.taskgraph.command.TasksCommand;
 import dev.taskgraph.dialog.IconPicker;
 import dev.taskgraph.dialog.TaskDialogs;
+import dev.taskgraph.dialog.TaskLinks;
 import dev.taskgraph.graph.TaskGraph;
 import dev.taskgraph.listener.NewTabListener;
 import dev.taskgraph.listener.PlayerSyncListener;
@@ -19,7 +20,6 @@ import dev.taskgraph.service.TaskService;
 import dev.taskgraph.storage.JsonTaskStore;
 import dev.taskgraph.storage.TaskStoreException;
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
-import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -31,6 +31,8 @@ import java.util.logging.Level;
 public final class TaskGraphPlugin extends JavaPlugin {
 
     private TabPackets tabPackets;
+    // Chat links open dialogs, and the dialogs need the actions that send those links: links read this later.
+    private TaskDialogs dialogs;
 
     @Override
     public void onEnable() {
@@ -64,16 +66,17 @@ public final class TaskGraphPlugin extends JavaPlugin {
         service.start();
         getServer().getPluginManager().registerEvents(new PlayerSyncListener(publisher), this);
 
+        TaskLinks links = new TaskLinks(this, (player, taskId) -> dialogs.openTask(player, taskId));
         TaskActions actions = new TaskActions(service,
-                message -> getServer().broadcast(Component.text(message, NamedTextColor.GREEN)), getLogger());
-        TaskCommand command = new TaskCommand(service, actions);
+                message -> getServer().broadcast(links.component(message, NamedTextColor.GREEN)), getLogger());
+        TaskCommand command = new TaskCommand(service, actions, links);
         IconPicker iconPicker = new IconPicker(this);
         getServer().getPluginManager().registerEvents(iconPicker, this);
         List<String> unknownIcons = IconPicker.unknownCatalogKeys();
         if (!unknownIcons.isEmpty()) {
             getLogger().warning("The icon picker skips items this version doesn't have: " + String.join(", ", unknownIcons));
         }
-        TaskDialogs dialogs = new TaskDialogs(this, service, actions, iconPicker);
+        dialogs = new TaskDialogs(this, service, actions, iconPicker);
         TasksCommand tasksCommand = new TasksCommand(dialogs);
         TabMemory tabMemory = new TabMemory();
         getServer().getPluginManager().registerEvents(new QuickAccessListener(this, dialogs, service, tabMemory), this);
