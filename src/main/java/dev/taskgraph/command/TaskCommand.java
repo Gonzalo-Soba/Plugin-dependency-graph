@@ -29,6 +29,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.BiFunction;
@@ -97,6 +98,8 @@ public final class TaskCommand {
                         .then(lastTask(TASK).executes(this::release)))
                 .then(Commands.literal("resolver")
                         .then(lastTask(TASK).executes(this::resolve)))
+                .then(Commands.literal("reabrir")
+                        .then(lastTask(TASK).executes(this::reopen)))
                 .then(Commands.literal("info")
                         .then(lastTask(TASK).executes(this::info)))
                 .then(Commands.literal("borrar")
@@ -213,6 +216,7 @@ public final class TaskCommand {
                 "asignar <título>",
                 "soltar <título> — deja de estar asignada a vos",
                 "resolver <título>",
+                "reabrir <título> — deshace la resolución",
                 "info <título>",
                 "borrar <título>",
                 "mover \"<título>\" <proyecto>",
@@ -301,6 +305,10 @@ public final class TaskCommand {
         return withTask(context, TASK, (actor, task) -> actions.resolve(actor, task.id()));
     }
 
+    private int reopen(CommandContext<CommandSourceStack> context) {
+        return withTask(context, TASK, (actor, task) -> actions.reopen(actor, task.id()));
+    }
+
     private int info(CommandContext<CommandSourceStack> context) {
         CommandSender sender = context.getSource().getSender();
         Optional<Task> found = lookup(context, TASK);
@@ -318,6 +326,8 @@ public final class TaskCommand {
         sender.sendMessage(Component.text("Tamaño: " + TaskTexts.size(task.size()), NamedTextColor.GRAY));
         sender.sendMessage(Component.text("Estado: " + (task.resolved() ? "resuelta" : "pendiente"),
                 task.resolved() ? NamedTextColor.GREEN : NamedTextColor.YELLOW));
+        TaskTexts.resolution(task, ZoneId.systemDefault())
+                .ifPresent(line -> sender.sendMessage(Component.text(line, NamedTextColor.GREEN)));
         sender.sendMessage(Component.text("Creada por: "
                 + task.creatorOptional().map(PlayerRef::name).orElse("desconocido"), NamedTextColor.GRAY));
         sender.sendMessage(Component.text("Asignada a: "

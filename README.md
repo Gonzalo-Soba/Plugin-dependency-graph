@@ -2,7 +2,7 @@
 
 Plugin de Paper para organizar las tareas comunales de un servidor de Minecraft. Las tareas forman un grafo de dependencias que se muestra en la pantalla de logros (advancements) vanilla, así que los jugadores no necesitan mods en el cliente.
 
-> Última versión: **0.4.0**: proyectos en pestañas propias, ocultar ramas terminadas, selector de íconos, tamaños de tarea, aviso de desbloqueo y pestañas "+" para crear tareas y proyectos (con PacketEvents).
+> Última versión: **0.5.0**: cada tarea resuelta muestra quién la resolvió y cuándo, y una tarea resuelta se puede reabrir.
 
 ## Cómo se ve
 
@@ -13,6 +13,7 @@ Plugin de Paper para organizar las tareas comunales de un servidor de Minecraft.
 - Cada tarea se ubica a la altura de sus dependencias, en lugar de ir al final de la columna. Los grupos de tareas que no se conectan entre sí se dibujan en bloques separados, uno debajo del otro, con una fila vacía en medio.
 - **Ocultar resueltas**, una opción de cada proyecto: saca de su pestaña las ramas terminadas, es decir, las tareas resueltas de las que ya no depende nada pendiente (en ningún proyecto). Una tarea resuelta que todavía desbloquea algo pendiente sigue a la vista. El raíz dice cuántas hay ocultas, y al volver a mostrarlas aparecen completadas, sin toasts.
 - El progreso es comunal: una tarea resuelta aparece completada para todos los jugadores, incluidos los que entran después.
+- **Quién y cuándo:** cada tarea resuelta dice quién la resolvió y qué día, por ejemplo "Resuelta por Steve el 03/11/2026", en el logro, en la ficha y en `/tarea info`. La fecha usa la zona horaria del servidor. Si la resolvió la consola dice solo la fecha, y las resueltas antes de la 0.5.0 no dicen nada.
 - **Aviso de desbloqueo:** cuando un cambio deja disponible una tarea que estaba bloqueada (por ejemplo, al resolver su última dependencia pendiente o al quitarla), todos ven en el chat "▶ Ahora se puede hacer: ...", después del anuncio de la resolución. Las tareas de otro proyecto dicen cuál. Crear una tarea nueva no avisa.
 - Las tareas se manejan desde una ventana del juego (`/tareas`, la tecla G o el menú de pausa) o con los comandos `/tarea`. Ver [Interfaz](#interfaz).
 - **Pestañas "+ Tarea" y "+ Proyecto"** (solo con [PacketEvents](#requisitos)): las dos últimas pestañas de la pantalla de logros. Abrir "+ Tarea" abre «Nueva tarea» en el proyecto de la pestaña que estabas mirando (General si no miraste ninguna); "+ Proyecto" abre «Nuevo proyecto». Al cancelar volvés al juego, y la próxima vez que abrís los logros vuelven a la pestaña donde estabas.
@@ -116,6 +117,8 @@ Jugadores: **A** y **B**.
 - [ ] **Sin PacketEvents.** `./gradlew runServer -PnoPacketEvents`; el log dice `PacketEvents not found` y no hay `NoClassDefFoundError`. No hay pestañas "+" y el raíz dice "Nueva tarea: /tareas o la tecla G.". Tecla G → «Nueva tarea» abre "Nueva tarea en General". `/tareas`, crear, resolver, el selector de íconos y `/tarea proyecto ocultar` funcionan igual.
 - [ ] **Tamaños.** `/tarea tamaño Pozo grande` y `/tarea tamano Muralla mediana`: en la pestaña, Pozo tiene el marco con puntas y Muralla el redondeado; las demás, el común. Tab sugiere chica, mediana y grande; `/tarea tamaño Pozo enorme` se rechaza explicando las opciones y repetir el mismo tamaño dice "ya era". `/tarea info Pozo` dice "Tamaño: Grande". En la ficha, «Cambiar tamaño» muestra el actual seleccionado y «Guardar» lo cambia. Resolver una tarea grande no muestra toast ni mensaje de "desafío completado", solo el anuncio "✔". Un `tasks.json` sin `size` carga todas como chicas.
 - [ ] **Aviso de desbloqueo.** Con el ejemplo de proyectos recién copiado: `/tarea resolver Horno` muestra a todos "✔ ... resolvió la tarea "Horno"" y después "▶ Ahora se puede hacer: "Pico de hierro" (en Minería).". Resolver una tarea que no desbloquea nada (`/tarea resolver Pozo`) solo muestra el "✔". `/tarea crear Silla` no avisa nada. Con "Mesa" dependiendo de "Silla", `/tarea quitardep Mesa Silla` avisa que "Mesa" se puede hacer. Desde la ficha («Resolver») el aviso sale igual.
+- [ ] **Quién resolvió.** A resuelve `/tarea resolver Pozo`: la descripción del logro, la ficha (debajo de "Estado") y `/tarea info Pozo` dicen "Resuelta por A el <fecha de hoy>". Desde la consola, `tarea resolver Muralla` dice "Resuelta el <fecha>". Reiniciar el servidor: sigue igual, y `tasks.json` tiene `resolvedBy` y `resolvedAt` en esas dos (sin `resolvedBy` en la de la consola). Las tareas que ya estaban resueltas no muestran la línea.
+- [ ] **Reabrir.** Con "Mesa" dependiendo de "Madera" y las dos resueltas: `/tarea reabrir Madera` se rechaza y nombra "Mesa". `/tarea reabrir Mesa` muestra a todos "↺ A reabrió la tarea "Mesa"" y el logro pasa a pendiente para todos los conectados, sin toast; la línea "Resuelta por" desaparece. Después `/tarea reabrir Madera` funciona y "Mesa" queda bloqueada. `/tarea reabrir Mesa` otra vez dice que no está resuelta. En la ficha, «Reabrir» aparece solo en tareas resueltas y B (sin op) puede usarlo. Con "ocultar resueltas" activado, reabrir una tarea oculta la vuelve a mostrar. B, que estaba desconectado, entra y ve "Mesa" pendiente.
 - [ ] **Interfaz: lista con 30 tareas.** Con el servidor apagado, copiar `dev-server/samples/tasks-30.json` sobre `run/plugins/TaskGraph/tasks.json` y arrancar. `/tareas` muestra las 30, se puede desplazar hasta el final y el orden por grupos se mantiene. La pestaña de logros también se ve legible.
 - [ ] **Interfaz: crear y editar.** "Nueva tarea" con un ítem en la mano crea la tarea con ese ícono y abre su ficha. Un título repetido muestra el error y conserva lo escrito. "Editar" cambia título y descripción en un solo paso.
 - [ ] **Íconos.** `/tarea icono Madera ` y Tab sugiere ítems; `/tarea icono Madera oak_log` cambia el ícono en la pestaña y en la ficha. `/tarea icono Madera air` se rechaza. En "Nueva tarea", el ícono `DIAMOND` crea la tarea con un diamante aunque tengas otra cosa en la mano; `diamante` muestra el error y conserva lo escrito; vacío usa el ítem en la mano. "Cambiar ícono" en la ficha acepta `minecraft:oak_log`, y vacío con la mano vacía muestra el error.
@@ -134,7 +137,7 @@ Las tareas se guardan en `plugins/TaskGraph/tasks.json`. Ese archivo es la fuent
 
 Si el archivo está dañado o tiene datos inválidos (por ejemplo, un ciclo de dependencias), el plugin se desactiva al arrancar y deja el archivo intacto. Revisar el log del servidor, corregir el archivo y reiniciar.
 
-**Formato 2 (desde la 0.4.0).** El archivo guarda también los proyectos, en qué proyecto está cada tarea y su tamaño (`size`: `SMALL`, `MEDIUM` o `LARGE`; si falta, es chica). Un `tasks.json` de una versión anterior (formato 1) se convierte solo al arrancar:
+**Formato 2 (desde la 0.4.0).** El archivo guarda también los proyectos, en qué proyecto está cada tarea y su tamaño (`size`: `SMALL`, `MEDIUM` o `LARGE`; si falta, es chica). Desde la 0.5.0, cada tarea resuelta guarda quién la resolvió (`resolvedBy`) y cuándo (`resolvedAt`, en UTC, por ejemplo `"2026-11-03T18:20:00Z"`); los dos son opcionales y no cambian el formato. Un `tasks.json` de una versión anterior (formato 1) se convierte solo al arrancar:
 - todas sus tareas pasan al proyecto General;
 - antes de convertirlo se guarda una copia del archivo original como `plugins/TaskGraph/tasks.v1.json.bak`;
 - el log muestra `Migrated tasks.json to format version 2`.
@@ -143,7 +146,7 @@ Si el archivo viejo tiene errores, no se convierte ni se toca.
 
 ## Interfaz
 
-`/tareas` abre una ventana del juego con la lista de proyectos. Hay dos atajos más, sin escribir comandos (ver [Atajos](#atajos)). Cada proyecto abre su lista de tareas, y cada tarea abre su ficha, con botones para asignarse, soltar, resolver, agregar o quitar dependencias, editar, cambiar el ícono, mover a otro proyecto y borrar. Cada botón aparece solo si quien mira puede usarlo.
+`/tareas` abre una ventana del juego con la lista de proyectos. Hay dos atajos más, sin escribir comandos (ver [Atajos](#atajos)). Cada proyecto abre su lista de tareas, y cada tarea abre su ficha, con botones para asignarse, soltar, resolver, reabrir, agregar o quitar dependencias, editar, cambiar el ícono, mover a otro proyecto y borrar. Cada botón aparece solo si quien mira puede usarlo.
 
 - **Proyectos:** cada botón muestra cuántas tareas tiene resueltas, por ejemplo "Base (2/5)". «Nuevo proyecto» crea otro, con su propia pestaña de logros. Dentro de un proyecto están «Renombrar proyecto», «Ocultar resueltas» (o «Mostrar resueltas») y, solo para admins y si no es General, «Borrar proyecto». La lista del Dialog muestra siempre todas las tareas, también las ocultas en la pestaña.
 - **Orden de la lista:** primero las disponibles (todas sus dependencias resueltas), después las bloqueadas y al final las resueltas.
@@ -189,7 +192,8 @@ Las tareas se nombran por su **título**, que es único: no distingue mayúscula
 | `/tarea asignar <título>` | Te asigna la tarea. Si ya está asignada a otra persona se rechaza: esa persona la suelta o un admin la reasigna. |
 | `/tarea soltar <título>` | Quita la asignación. Solo quien la tiene asignada o un admin. |
 | `/tarea resolver <título>` | Marca la tarea como resuelta para todos. Requiere que todas sus dependencias estén resueltas. |
-| `/tarea info <título>` | Muestra proyecto, tamaño, estado, quién la creó, asignado, dependencias y qué tareas la necesitan. |
+| `/tarea reabrir <título>` | Deshace la resolución: la tarea vuelve a estar pendiente para todos. Se rechaza si alguna tarea que depende de ella está resuelta (hay que reabrir esa primero). |
+| `/tarea info <título>` | Muestra proyecto, tamaño, estado (y quién la resolvió y cuándo), quién la creó, asignado, dependencias y qué tareas la necesitan. |
 | `/tarea borrar <título>` | Borra la tarea. Solo quien la creó o un admin. Se rechaza si otras tareas dependen de ella. |
 | `/tarea mover "<título>" <proyecto>` | Pasa la tarea a otro proyecto (otra pestaña). Conserva dependencias, estado y asignado. |
 | `/tarea proyecto lista` | Lista los proyectos con sus tareas resueltas. `/tarea proyecto` solo hace lo mismo. |
@@ -204,7 +208,7 @@ Las tareas se nombran por su **título**, que es único: no distingue mayúscula
 |---|---|---|
 | `taskgraph.admin` | operadores | Borrar cualquier tarea, borrar proyectos, soltar tareas de otros y reasignar con `asignar` una tarea que tiene otra persona. |
 
-Todo lo demás (crear, renombrar, describir, cambiar el ícono o el tamaño, agregar y quitar dependencias, mover tareas, crear y renombrar proyectos, ocultar o mostrar resueltas, asignarse tareas libres, resolver y ver info) está abierto a todos los jugadores. La consola del servidor cuenta como admin. Las tareas creadas antes de que se guardara el creador solo las puede borrar un admin.
+Todo lo demás (crear, renombrar, describir, cambiar el ícono o el tamaño, agregar y quitar dependencias, mover tareas, crear y renombrar proyectos, ocultar o mostrar resueltas, asignarse tareas libres, resolver, reabrir y ver info) está abierto a todos los jugadores. La consola del servidor cuenta como admin. Las tareas creadas antes de que se guardara el creador solo las puede borrar un admin.
 
 Cada cambio se guarda en el JSON y regenera la pestaña de logros para todos los jugadores online.
 

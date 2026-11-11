@@ -2,6 +2,7 @@ package dev.taskgraph.graph;
 
 import dev.taskgraph.graph.TaskGraphException.Reason;
 
+import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -285,7 +286,16 @@ public final class TaskGraph {
         return replace(task.withAssignee(null));
     }
 
+    /** Resolves without recording who or when; for tests and data built by hand. */
     public Task resolve(String id) {
+        return resolve(id, null, null);
+    }
+
+    /**
+     * @param by player who resolves it, or {@code null} for the console
+     * @param at when it is resolved
+     */
+    public Task resolve(String id, PlayerRef by, Instant at) {
         Task task = require(id);
         if (task.resolved()) {
             throw new TaskGraphException(Reason.ALREADY_RESOLVED, id);
@@ -294,7 +304,23 @@ public final class TaskGraph {
         if (!unresolved.isEmpty()) {
             throw new TaskGraphException(Reason.UNRESOLVED_DEPENDENCIES, id, unresolved);
         }
-        return replace(task.withResolved(true));
+        return replace(task.withResolution(by, at));
+    }
+
+    /**
+     * Undoes a resolution. Rejected while a resolved task depends on it, so a resolved task never has a
+     * pending dependency.
+     */
+    public Task reopen(String id) {
+        Task task = require(id);
+        if (!task.resolved()) {
+            throw new TaskGraphException(Reason.NOT_RESOLVED, id);
+        }
+        List<String> resolvedDependents = dependents(id).stream().filter(dependent -> tasks.get(dependent).resolved()).toList();
+        if (!resolvedDependents.isEmpty()) {
+            throw new TaskGraphException(Reason.RESOLVED_DEPENDENTS, id, resolvedDependents);
+        }
+        return replace(task.reopened());
     }
 
     public Task remove(String id) {

@@ -1,5 +1,6 @@
 package dev.taskgraph.action;
 
+import dev.taskgraph.graph.PlayerRef;
 import dev.taskgraph.graph.Project;
 import dev.taskgraph.graph.Task;
 import dev.taskgraph.graph.TaskGraph;
@@ -9,8 +10,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
+import java.time.Instant;
+import java.time.ZoneId;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -26,6 +31,29 @@ class TaskTextsTest {
         graph.resolve(wood.id());
 
         assertEquals("✔ Madera, ✘ Piedra", TaskTexts.taskList(graph, List.of(wood.id(), stone.id())));
+    }
+
+    @Test
+    void resolutionNamesWhoAndTheDateInTheGivenZone() {
+        TaskGraph graph = new TaskGraph();
+        Task wood = graph.create("Madera", "minecraft:oak_log");
+        // 01:30 UTC on the 4th is still the 3rd in Buenos Aires.
+        Task resolved = graph.resolve(wood.id(), new PlayerRef(UUID.randomUUID(), "Steve"), Instant.parse("2026-11-04T01:30:00Z"));
+
+        assertEquals(Optional.of("Resuelta por Steve el 03/11/2026"),
+                TaskTexts.resolution(resolved, ZoneId.of("America/Argentina/Buenos_Aires")));
+    }
+
+    @Test
+    void resolutionLeavesOutWhatWasNotRecorded() {
+        TaskGraph graph = new TaskGraph();
+        Task console = graph.resolve(graph.create("Madera", "minecraft:oak_log").id(), null, Instant.parse("2026-11-03T12:00:00Z"));
+        Task old = graph.resolve(graph.create("Piedra", "minecraft:cobblestone").id());
+        Task pending = graph.create("Horno", "minecraft:furnace");
+
+        assertEquals(Optional.of("Resuelta el 03/11/2026"), TaskTexts.resolution(console, ZoneId.of("UTC")));
+        assertEquals(Optional.empty(), TaskTexts.resolution(old, ZoneId.of("UTC")));
+        assertEquals(Optional.empty(), TaskTexts.resolution(pending, ZoneId.of("UTC")));
     }
 
     @Test

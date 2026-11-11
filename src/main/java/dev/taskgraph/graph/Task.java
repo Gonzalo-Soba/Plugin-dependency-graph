@@ -1,5 +1,6 @@
 package dev.taskgraph.graph;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -19,6 +20,10 @@ import java.util.Set;
  *                     which is how tasks stored before projects existed are read
  * @param size         shown as the advancement frame; {@code null} means small, which is how tasks stored
  *                     before sizes existed are read
+ * @param resolvedBy   player who resolved the task, or {@code null} for the console, for tasks resolved before
+ *                     this was recorded, and for unresolved tasks
+ * @param resolvedAt   when the task was resolved, or {@code null} for tasks resolved before this was recorded
+ *                     and for unresolved tasks
  */
 public record Task(
         String id,
@@ -30,7 +35,9 @@ public record Task(
         boolean resolved,
         PlayerRef creator,
         String project,
-        TaskSize size
+        TaskSize size,
+        PlayerRef resolvedBy,
+        Instant resolvedAt
 ) {
 
     public Task {
@@ -41,6 +48,16 @@ public record Task(
         dependencies = dependencies == null ? List.of() : List.copyOf(dependencies);
         project = project == null ? Project.GENERAL_ID : project;
         size = size == null ? TaskSize.SMALL : size;
+        if (!resolved) {
+            resolvedBy = null;
+            resolvedAt = null;
+        }
+    }
+
+    /** Task without a recorded resolver. */
+    public Task(String id, String title, String description, String icon, List<String> dependencies,
+                PlayerRef assignee, boolean resolved, PlayerRef creator, String project, TaskSize size) {
+        this(id, title, description, icon, dependencies, assignee, resolved, creator, project, size, null, null);
     }
 
     /** Small task. */
@@ -67,6 +84,14 @@ public record Task(
 
     public Optional<PlayerRef> creatorOptional() {
         return Optional.ofNullable(creator);
+    }
+
+    public Optional<PlayerRef> resolvedByOptional() {
+        return Optional.ofNullable(resolvedBy);
+    }
+
+    public Optional<Instant> resolvedAtOptional() {
+        return Optional.ofNullable(resolvedAt);
     }
 
     public Optional<PlayerRef> assigneeOptional() {
@@ -101,34 +126,39 @@ public record Task(
     }
 
     Task withTitle(String newTitle) {
-        return new Task(id, newTitle, description, icon, dependencies, assignee, resolved, creator, project, size);
+        return new Task(id, newTitle, description, icon, dependencies, assignee, resolved, creator, project, size, resolvedBy, resolvedAt);
     }
 
     Task withIcon(String newIcon) {
-        return new Task(id, title, description, newIcon, dependencies, assignee, resolved, creator, project, size);
+        return new Task(id, title, description, newIcon, dependencies, assignee, resolved, creator, project, size, resolvedBy, resolvedAt);
     }
 
     Task withDescription(String newDescription) {
-        return new Task(id, title, newDescription, icon, dependencies, assignee, resolved, creator, project, size);
+        return new Task(id, title, newDescription, icon, dependencies, assignee, resolved, creator, project, size, resolvedBy, resolvedAt);
     }
 
     Task withDependencies(List<String> newDependencies) {
-        return new Task(id, title, description, icon, newDependencies, assignee, resolved, creator, project, size);
+        return new Task(id, title, description, icon, newDependencies, assignee, resolved, creator, project, size, resolvedBy, resolvedAt);
     }
 
     Task withAssignee(PlayerRef newAssignee) {
-        return new Task(id, title, description, icon, dependencies, newAssignee, resolved, creator, project, size);
+        return new Task(id, title, description, icon, dependencies, newAssignee, resolved, creator, project, size, resolvedBy, resolvedAt);
     }
 
-    Task withResolved(boolean newResolved) {
-        return new Task(id, title, description, icon, dependencies, assignee, newResolved, creator, project, size);
+    Task withResolution(PlayerRef by, Instant at) {
+        return new Task(id, title, description, icon, dependencies, assignee, true, creator, project, size, by, at);
+    }
+
+    /** Unresolved again; the constructor drops who resolved it and when. */
+    Task reopened() {
+        return new Task(id, title, description, icon, dependencies, assignee, false, creator, project, size);
     }
 
     Task withSize(TaskSize newSize) {
-        return new Task(id, title, description, icon, dependencies, assignee, resolved, creator, project, newSize);
+        return new Task(id, title, description, icon, dependencies, assignee, resolved, creator, project, newSize, resolvedBy, resolvedAt);
     }
 
     Task withProject(String newProject) {
-        return new Task(id, title, description, icon, dependencies, assignee, resolved, creator, newProject, size);
+        return new Task(id, title, description, icon, dependencies, assignee, resolved, creator, newProject, size, resolvedBy, resolvedAt);
     }
 }
