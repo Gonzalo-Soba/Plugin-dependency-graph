@@ -12,11 +12,13 @@ import net.kyori.adventure.text.object.ObjectContents;
 final class DialogIcons {
 
     private static final Key ITEMS = Key.key("minecraft", "items");
+    private static final Key GUI = Key.key("minecraft", "gui");
 
     static final Component NEW = item("lime_dye");
     static final Component RENAME = item("writable_book");
     static final Component VISIBILITY = item("ender_eye");
     static final Component DELETE = item("barrier");
+    static final Component SEARCH = Component.object(ObjectContents.sprite(GUI, Key.key("minecraft", "icon/search")));
 
     private DialogIcons() {
     }
