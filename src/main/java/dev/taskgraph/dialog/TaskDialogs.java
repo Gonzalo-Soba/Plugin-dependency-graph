@@ -6,6 +6,7 @@ import dev.taskgraph.action.TaskTexts;
 import dev.taskgraph.advancement.TaskIcons;
 import dev.taskgraph.command.Senders;
 import dev.taskgraph.graph.IconKeys;
+import dev.taskgraph.graph.MainAction;
 import dev.taskgraph.graph.PlayerRef;
 import dev.taskgraph.graph.Project;
 import dev.taskgraph.graph.Task;
@@ -67,11 +68,8 @@ public final class TaskDialogs {
     private static final String TASK_INPUT = "tarea";
     private static final String PROJECT_INPUT = "proyecto";
     private static final String SIZE_INPUT = "tamano";
-    private static final String ICON_INPUT = "icono";
     private static final int TITLE_MAX_LENGTH = 64;
     private static final int DESCRIPTION_MAX_LENGTH = 512;
-    private static final int ICON_MAX_LENGTH = 64;
-    private static final String ICON_HINT = "Escribí el id de un ítem, por ejemplo diamond o minecraft:oak_log.";
     private static final int LIST_COLUMNS = 2;
     private static final int LIST_BUTTON_WIDTH = 150;
     private static final int ACTION_BUTTON_WIDTH = 200;
@@ -124,7 +122,7 @@ public final class TaskDialogs {
             buttons.add(button(Component.text(project.title() + " (" + resolved + "/" + tasks.size() + ")", NamedTextColor.WHITE),
                     tooltip, LIST_BUTTON_WIDTH, onClick(viewer -> openTasks(viewer, project.id(), null))));
         }
-        buttons.add(button(Component.text("+ Nuevo proyecto", NamedTextColor.GOLD), null, LIST_BUTTON_WIDTH,
+        buttons.add(button(DialogIcons.label(DialogIcons.NEW, "Nuevo proyecto", NamedTextColor.GOLD), null, LIST_BUTTON_WIDTH,
                 onClick(viewer -> openCreateProject(viewer, back -> openProjects(back, null), null, ""))));
 
         show(player, Component.text("Tareas del servidor"), body, List.of(),
@@ -176,7 +174,7 @@ public final class TaskDialogs {
                 openRenameProject(viewer, projectId, result, newTitle);
             }
         }));
-        ActionButton cancel = actionButton("Cancelar", NamedTextColor.WHITE, onClick(viewer -> openTasks(viewer, projectId, null)));
+        ActionButton cancel = actionButton("Cancelar", NamedTextColor.WHITE, onClick(viewer -> openProjectOptions(viewer, projectId, null)));
 
         show(player, Component.text("Renombrar proyecto"), feedback(feedback), List.of(titleInput(title)),
                 DialogType.confirmation(save, cancel));
@@ -193,10 +191,10 @@ public final class TaskDialogs {
             if (result.success()) {
                 openProjects(viewer, result);
             } else {
-                openTasks(viewer, projectId, result);
+                openProjectOptions(viewer, projectId, result);
             }
         }));
-        ActionButton no = actionButton("No", NamedTextColor.WHITE, onClick(viewer -> openTasks(viewer, projectId, null)));
+        ActionButton no = actionButton("No", NamedTextColor.WHITE, onClick(viewer -> openProjectOptions(viewer, projectId, null)));
 
         show(player, Component.text("Borrar proyecto"),
                 List.of(text(Component.text("¿Borrar el proyecto " + quoted(project.get().title())
@@ -217,20 +215,29 @@ public final class TaskDialogs {
         List<Task> tasks = graph.listOrder().stream().filter(task -> task.project().equals(projectId)).toList();
 
         List<DialogBody> body = new ArrayList<>(feedback(feedback));
+        if (tasks.isEmpty()) {
+            body.add(text(Component.text("Todavía no hay tareas en este proyecto. Creá la primera con «Nueva tarea».", NamedTextColor.GRAY)));
+        } else {
+            long resolved = tasks.stream().filter(Task::resolved).count();
+            body.add(text(Component.text(resolved + " de " + tasks.size() + " resueltas   ·   "
+                    + TaskTexts.marker(TaskStatus.AVAILABLE) + " disponible   "
+                    + TaskTexts.marker(TaskStatus.BLOCKED) + " bloqueada   "
+                    + TaskTexts.marker(TaskStatus.RESOLVED) + " resuelta", NamedTextColor.GRAY)));
+        }
         int hidden = graph.hiddenTasksIn(projectId).size();
         if (hidden > 0) {
             body.add(text(Component.text((hidden == 1 ? "1 resuelta oculta" : hidden + " resueltas ocultas")
                     + " en la pestaña de logros. Acá se listan igual.", NamedTextColor.DARK_GRAY)));
         }
-        if (tasks.isEmpty()) {
-            body.add(text(Component.text("Todavía no hay tareas en este proyecto. Creá la primera con «Nueva tarea».", NamedTextColor.GRAY)));
-        } else {
-            body.add(text(Component.text(TaskTexts.marker(TaskStatus.AVAILABLE) + " disponible   "
-                    + TaskTexts.marker(TaskStatus.BLOCKED) + " bloqueada   "
-                    + TaskTexts.marker(TaskStatus.RESOLVED) + " resuelta", NamedTextColor.GRAY)));
-        }
 
+        // Fixed first row, as wide as the tasks: the dialog grid can't fit a row of narrower buttons.
         List<ActionButton> buttons = new ArrayList<>();
+        buttons.add(button(DialogIcons.label(DialogIcons.NEW, "Nueva tarea", NamedTextColor.GOLD), null, LIST_BUTTON_WIDTH,
+                onClick(viewer -> openCreate(viewer, projectId, back -> openTasks(back, projectId, null), null, "", "", ""))));
+        buttons.add(button(Component.text("⚙ Opciones", NamedTextColor.WHITE),
+                Component.text("Renombrar el proyecto, ocultar resueltas" + (canRemove(project, player) ? ", borrar" : ""),
+                        NamedTextColor.GRAY),
+                LIST_BUTTON_WIDTH, onClick(viewer -> openProjectOptions(viewer, projectId, null))));
         for (Task task : tasks) {
             TaskStatus status = graph.status(task.id());
             Component tooltip = Component.join(JoinConfiguration.newlines(),
@@ -239,27 +246,53 @@ public final class TaskDialogs {
             buttons.add(button(Component.text(TaskTexts.marker(status) + " " + task.title(), color(status)),
                     tooltip, LIST_BUTTON_WIDTH, onClick(viewer -> openDetail(viewer, task.id(), null))));
         }
-        buttons.add(button(Component.text("+ Nueva tarea", NamedTextColor.GOLD), null, LIST_BUTTON_WIDTH,
-                onClick(viewer -> openCreate(viewer, projectId, back -> openTasks(back, projectId, null), null, "", "", ""))));
-        buttons.add(button(Component.text("Renombrar proyecto", NamedTextColor.WHITE), null, LIST_BUTTON_WIDTH,
-                onClick(viewer -> openRenameProject(viewer, projectId, null, project.title()))));
-        boolean hide = !project.hideResolved();
-        buttons.add(button(Component.text(hide ? "Ocultar resueltas" : "Mostrar resueltas", NamedTextColor.WHITE),
-                Component.text(hide
-                        ? "Saca de la pestaña las tareas resueltas de las que ya no depende nada pendiente."
-                        : "Vuelve a mostrar en la pestaña todas las tareas resueltas.", NamedTextColor.GRAY),
-                LIST_BUTTON_WIDTH,
-                onClick(viewer -> openTasks(viewer, projectId, actions.setHideResolved(Senders.actor(viewer), projectId, hide)))));
-        if (!project.isGeneral() && TaskPermissions.canRemoveProject(Senders.actor(player))) {
-            buttons.add(button(Component.text("Borrar proyecto", NamedTextColor.RED), null, LIST_BUTTON_WIDTH,
-                    onClick(viewer -> openConfirmRemoveProject(viewer, projectId))));
-        }
 
         show(player, Component.text(project.title()), body, List.of(),
                 DialogType.multiAction(buttons)
                         .columns(LIST_COLUMNS)
                         .exitAction(button(Component.text("Volver"), null, ACTION_BUTTON_WIDTH, onClick(viewer -> openProjects(viewer, null))))
                         .build());
+    }
+
+    /** The project's settings, on their own screen so the task list only lists tasks. */
+    private void openProjectOptions(Player player, String projectId, ActionResult feedback) {
+        Optional<Project> found = service.project(projectId);
+        if (found.isEmpty()) {
+            openProjects(player, failure(TaskActions.PROJECT_GONE));
+            return;
+        }
+        Project project = found.get();
+
+        List<ActionButton> buttons = new ArrayList<>();
+        buttons.add(button(DialogIcons.label(DialogIcons.RENAME, "Renombrar proyecto", NamedTextColor.WHITE), null,
+                ACTION_BUTTON_WIDTH, onClick(viewer -> openRenameProject(viewer, projectId, null, project.title()))));
+        boolean hide = !project.hideResolved();
+        buttons.add(button(DialogIcons.label(DialogIcons.VISIBILITY, hide ? "Ocultar resueltas" : "Mostrar resueltas", NamedTextColor.WHITE),
+                Component.text(hide
+                        ? "Saca de la pestaña las tareas resueltas de las que ya no depende nada pendiente."
+                        : "Vuelve a mostrar en la pestaña todas las tareas resueltas.", NamedTextColor.GRAY),
+                ACTION_BUTTON_WIDTH,
+                onClick(viewer -> openProjectOptions(viewer, projectId, actions.setHideResolved(Senders.actor(viewer), projectId, hide)))));
+        if (canRemove(project, player)) {
+            buttons.add(button(DialogIcons.label(DialogIcons.DELETE, "Borrar proyecto", NamedTextColor.RED),
+                    Component.text("Solo se puede si ya no tiene tareas.", NamedTextColor.GRAY),
+                    ACTION_BUTTON_WIDTH, onClick(viewer -> openConfirmRemoveProject(viewer, projectId))));
+        }
+
+        List<DialogBody> body = new ArrayList<>(feedback(feedback));
+        body.add(text(Component.text(project.hideResolved()
+                ? "La pestaña oculta las ramas terminadas."
+                : "La pestaña muestra todas las tareas.", NamedTextColor.GRAY)));
+        show(player, Component.text("Opciones de " + project.title()), body, List.of(),
+                DialogType.multiAction(buttons)
+                        .columns(1)
+                        .exitAction(button(Component.text("Volver"), null, ACTION_BUTTON_WIDTH, onClick(viewer -> openTasks(viewer, projectId, null))))
+                        .build());
+    }
+
+    /** Only a hint for what to show; {@link TaskActions#removeProject} checks again when clicked. */
+    private static boolean canRemove(Project project, Player player) {
+        return !project.isGeneral() && TaskPermissions.canRemoveProject(Senders.actor(player));
     }
 
     // ---- Detail ----
@@ -280,6 +313,149 @@ public final class TaskDialogs {
                 ? Component.text("Sin descripción.", NamedTextColor.DARK_GRAY)
                 : Component.text(task.description(), NamedTextColor.GRAY);
         body.add(DialogBody.item(TaskIcons.of(task.icon())).description(DialogBody.plainMessage(description)).build());
+        // Only what decides the next step; the rest is under «Detalles».
+        List<Component> info = new ArrayList<>();
+        info.add(Component.text(TaskTexts.marker(status) + " " + TaskTexts.status(status), color(status)));
+        TaskTexts.resolution(task, ZoneId.systemDefault()).ifPresent(line -> info.add(Component.text(line, NamedTextColor.GREEN)));
+        if (status == TaskStatus.BLOCKED) {
+            info.add(Component.text("Falta: " + TaskTexts.taskList(graph, pendingDependencies(graph, task)), NamedTextColor.YELLOW));
+        }
+        if (!task.resolved()) {
+            info.add(Component.text("Asignada a: " + task.assigneeOptional().map(PlayerRef::name).orElse("nadie"), NamedTextColor.AQUA));
+        }
+        body.add(text(Component.join(JoinConfiguration.newlines(), info)));
+
+        List<ActionButton> buttons = new ArrayList<>();
+        mainAction(task, MainAction.of(task, status, actor)).ifPresent(buttons::add);
+        if (task.assigneeOptional().isPresent() && !task.resolved() && TaskPermissions.canRelease(task, actor)) {
+            buttons.add(actionButton("Soltar", NamedTextColor.AQUA,
+                    onClick(viewer -> openDetail(viewer, taskId, actions.release(Senders.actor(viewer), taskId)))));
+        }
+        buttons.add(button(DialogIcons.label(DialogIcons.RENAME, "Editar ▸", NamedTextColor.WHITE),
+                Component.text("Título, descripción, ícono, tamaño" + (graph.projects().size() > 1 ? ", proyecto" : ""), NamedTextColor.GRAY),
+                ACTION_BUTTON_WIDTH, onClick(viewer -> openEditMenu(viewer, taskId))));
+        if (!task.dependencies().isEmpty() || !graph.dependencyCandidates(taskId).isEmpty()) {
+            buttons.add(button(Component.text("Dependencias ▸", NamedTextColor.WHITE), dependencySummary(graph, task),
+                    ACTION_BUTTON_WIDTH, onClick(viewer -> openDependencies(viewer, taskId, null))));
+        }
+        buttons.add(button(Component.text("Detalles ▸", NamedTextColor.WHITE),
+                Component.text("Proyecto, tamaño, quién la creó y qué tareas la necesitan", NamedTextColor.GRAY),
+                ACTION_BUTTON_WIDTH, onClick(viewer -> openDetails(viewer, taskId))));
+        if (TaskPermissions.canRemove(task, actor)) {
+            buttons.add(button(DialogIcons.label(DialogIcons.DELETE, "Borrar", NamedTextColor.RED), null,
+                    ACTION_BUTTON_WIDTH, onClick(viewer -> openConfirmRemove(viewer, taskId))));
+        }
+
+        show(player, Component.text(task.title()), body, List.of(),
+                DialogType.multiAction(buttons)
+                        .columns(1)
+                        .exitAction(button(Component.text("Volver"), null, ACTION_BUTTON_WIDTH,
+                                onClick(viewer -> openTasks(viewer, task.project(), null))))
+                        .build());
+    }
+
+    private Optional<ActionButton> mainAction(Task task, MainAction action) {
+        String taskId = task.id();
+        return switch (action) {
+            case REOPEN -> Optional.of(actionButton("↺ Reabrir", NamedTextColor.YELLOW, onClick(viewer -> {
+                ActionResult result = actions.reopen(Senders.actor(viewer), taskId);
+                // Reopening and resolving announce to everyone instead of replying, so the dialog says it.
+                openDetail(viewer, taskId, result.success()
+                        ? new ActionResult(true, result.task(), "Reabriste " + quoted(task.title()) + ".", List.of())
+                        : result);
+            })));
+            case RESOLVE -> Optional.of(actionButton("✔ Resolver", NamedTextColor.GREEN, onClick(viewer -> {
+                ActionResult result = actions.resolve(Senders.actor(viewer), taskId);
+                openDetail(viewer, taskId, result.success()
+                        ? new ActionResult(true, result.task(), "Resolviste " + quoted(task.title()) + ".", List.of())
+                        : result);
+            })));
+            case ASSIGN, REASSIGN -> Optional.of(actionButton(action == MainAction.ASSIGN ? "Asignarme" : "Reasignarme",
+                    NamedTextColor.AQUA,
+                    onClick(viewer -> openDetail(viewer, taskId, actions.assignToSelf(Senders.actor(viewer), taskId)))));
+            case NONE -> Optional.empty();
+        };
+    }
+
+    private static List<String> pendingDependencies(TaskGraph graph, Task task) {
+        return task.dependencies().stream()
+                .filter(id -> graph.get(id).filter(Task::resolved).isEmpty())
+                .toList();
+    }
+
+    private static Component dependencySummary(TaskGraph graph, Task task) {
+        return Component.join(JoinConfiguration.newlines(),
+                Component.text("Depende de: " + TaskTexts.taskList(graph, task.dependencies()), NamedTextColor.GRAY),
+                Component.text("La necesitan: " + TaskTexts.taskList(graph, graph.dependents(task.id())), NamedTextColor.GRAY));
+    }
+
+    private void openEditMenu(Player player, String taskId) {
+        TaskGraph graph = service.snapshot();
+        Optional<Task> found = graph.get(taskId);
+        if (found.isEmpty()) {
+            openProjects(player, failure(TASK_GONE));
+            return;
+        }
+        Task task = found.get();
+        List<ActionButton> buttons = new ArrayList<>();
+        buttons.add(actionButton("Título y descripción", NamedTextColor.WHITE,
+                onClick(viewer -> openEdit(viewer, taskId, null, task.title(), task.description()))));
+        buttons.add(button(Component.text("Ícono"), Component.text("Ahora: " + IconKeys.display(task.icon()), NamedTextColor.GRAY),
+                ACTION_BUTTON_WIDTH, onClick(viewer -> openIcon(viewer, taskId))));
+        buttons.add(button(Component.text("Tamaño"), Component.text("Ahora: " + TaskTexts.size(task.size()), NamedTextColor.GRAY),
+                ACTION_BUTTON_WIDTH, onClick(viewer -> openSize(viewer, taskId))));
+        if (graph.projects().size() > 1) {
+            buttons.add(button(Component.text("Mover a otro proyecto"),
+                    Component.text("Ahora en " + projectTitle(graph, task.project()), NamedTextColor.GRAY),
+                    ACTION_BUTTON_WIDTH, onClick(viewer -> openMove(viewer, taskId))));
+        }
+        show(player, Component.text("Editar " + task.title()), List.of(), List.of(),
+                DialogType.multiAction(buttons)
+                        .columns(1)
+                        .exitAction(actionButton("Volver", NamedTextColor.WHITE, onClick(viewer -> openDetail(viewer, taskId, null))))
+                        .build());
+    }
+
+    private void openDependencies(Player player, String taskId, ActionResult feedback) {
+        TaskGraph graph = service.snapshot();
+        Optional<Task> found = graph.get(taskId);
+        if (found.isEmpty()) {
+            openProjects(player, failure(TASK_GONE));
+            return;
+        }
+        Task task = found.get();
+        List<DialogBody> body = new ArrayList<>(feedback(feedback));
+        body.add(text(dependencySummary(graph, task)));
+
+        List<ActionButton> buttons = new ArrayList<>();
+        if (!graph.dependencyCandidates(taskId).isEmpty()) {
+            buttons.add(actionButton("Agregar dependencia", NamedTextColor.WHITE,
+                    onClick(viewer -> openAddDependency(viewer, taskId, null))));
+        }
+        if (!task.dependencies().isEmpty()) {
+            buttons.add(actionButton("Quitar dependencia", NamedTextColor.WHITE,
+                    onClick(viewer -> openRemoveDependency(viewer, taskId))));
+        }
+        if (buttons.isEmpty()) {
+            openDetail(player, taskId, feedback);
+            return;
+        }
+        show(player, Component.text("Dependencias de " + task.title()), body, List.of(),
+                DialogType.multiAction(buttons)
+                        .columns(1)
+                        .exitAction(actionButton("Volver", NamedTextColor.WHITE, onClick(viewer -> openDetail(viewer, taskId, null))))
+                        .build());
+    }
+
+    private void openDetails(Player player, String taskId) {
+        TaskGraph graph = service.snapshot();
+        Optional<Task> found = graph.get(taskId);
+        if (found.isEmpty()) {
+            openProjects(player, failure(TASK_GONE));
+            return;
+        }
+        Task task = found.get();
+        TaskStatus status = graph.status(taskId);
         List<Component> info = new ArrayList<>(List.of(
                 Component.text("Estado: " + TaskTexts.status(status), color(status)),
                 Component.text("Proyecto: " + projectTitle(graph, task.project()), NamedTextColor.GRAY),
@@ -290,67 +466,16 @@ public final class TaskDialogs {
                 Component.text("La necesitan: " + TaskTexts.taskList(graph, graph.dependents(taskId)), NamedTextColor.GRAY)));
         TaskTexts.resolution(task, ZoneId.systemDefault())
                 .ifPresent(line -> info.add(1, Component.text(line, NamedTextColor.GREEN)));
-        body.add(text(Component.join(JoinConfiguration.newlines(), info)));
-
-        List<ActionButton> buttons = new ArrayList<>();
-        boolean assignedToActor = actor.uuid() != null && task.assigneeOptional().filter(ref -> ref.is(actor.uuid())).isPresent();
-        if (actor.uuid() != null && !assignedToActor && TaskPermissions.canAssignToSelf(task, actor)) {
-            String label = task.assigneeOptional().isPresent() ? "Reasignarme" : "Asignarme";
-            buttons.add(actionButton(label, NamedTextColor.AQUA,
-                    onClick(viewer -> openDetail(viewer, taskId, actions.assignToSelf(Senders.actor(viewer), taskId)))));
-        }
-        if (task.assigneeOptional().isPresent() && TaskPermissions.canRelease(task, actor)) {
-            buttons.add(actionButton("Soltar", NamedTextColor.AQUA,
-                    onClick(viewer -> openDetail(viewer, taskId, actions.release(Senders.actor(viewer), taskId)))));
-        }
-        if (status == TaskStatus.AVAILABLE) {
-            buttons.add(actionButton("Resolver", NamedTextColor.GREEN, onClick(viewer -> {
-                ActionResult result = actions.resolve(Senders.actor(viewer), taskId);
-                // Resolving announces to everyone instead of replying, so the dialog says it explicitly.
-                openDetail(viewer, taskId, result.success()
-                        ? new ActionResult(true, result.task(), "Resolviste " + quoted(task.title()) + ".", List.of())
-                        : result);
-            })));
-        }
-        if (task.resolved()) {
-            buttons.add(actionButton("Reabrir", NamedTextColor.YELLOW, onClick(viewer -> {
-                ActionResult result = actions.reopen(Senders.actor(viewer), taskId);
-                openDetail(viewer, taskId, result.success()
-                        ? new ActionResult(true, result.task(), "Reabriste " + quoted(task.title()) + ".", List.of())
-                        : result);
-            })));
-        }
-        if (!graph.dependencyCandidates(taskId).isEmpty()) {
-            buttons.add(actionButton("Agregar dependencia", NamedTextColor.WHITE,
-                    onClick(viewer -> openAddDependency(viewer, taskId, null))));
-        }
-        if (!task.dependencies().isEmpty()) {
-            buttons.add(actionButton("Quitar dependencia", NamedTextColor.WHITE,
-                    onClick(viewer -> openRemoveDependency(viewer, taskId))));
-        }
-        buttons.add(actionButton("Editar", NamedTextColor.WHITE,
-                onClick(viewer -> openEdit(viewer, taskId, null, task.title(), task.description()))));
-        buttons.add(actionButton("Cambiar ícono", NamedTextColor.WHITE,
-                onClick(viewer -> openIcon(viewer, taskId, null, IconKeys.display(task.icon())))));
-        buttons.add(actionButton("Cambiar tamaño", NamedTextColor.WHITE, onClick(viewer -> openSize(viewer, taskId))));
-        if (graph.projects().size() > 1) {
-            buttons.add(actionButton("Mover a otro proyecto", NamedTextColor.WHITE, onClick(viewer -> openMove(viewer, taskId))));
-        }
-        if (TaskPermissions.canRemove(task, actor)) {
-            buttons.add(actionButton("Borrar", NamedTextColor.RED, onClick(viewer -> openConfirmRemove(viewer, taskId))));
-        }
-
-        show(player, Component.text(task.title()), body, List.of(),
-                DialogType.multiAction(buttons)
-                        .columns(2)
-                        .exitAction(button(Component.text("Volver"), null, ACTION_BUTTON_WIDTH,
-                                onClick(viewer -> openTasks(viewer, task.project(), null))))
-                        .build());
+        show(player, Component.text("Detalles de " + task.title()), List.of(text(Component.join(JoinConfiguration.newlines(), info))),
+                List.of(), DialogType.notice(actionButton("Volver", NamedTextColor.WHITE, onClick(viewer -> openDetail(viewer, taskId, null)))));
     }
 
     // ---- Create and edit ----
 
-    /** @param back where «Cancelar» leads */
+    /**
+     * @param back where «Cancelar» leads
+     * @param icon the icon picked in the chest menu so far, or empty to use the item in hand
+     */
     private void openCreate(Player player, String projectId, Consumer<Player> back, ActionResult feedback,
                             String title, String description, String icon) {
         Optional<Project> project = service.project(projectId);
@@ -360,23 +485,23 @@ public final class TaskDialogs {
         }
         List<DialogBody> body = new ArrayList<>(feedback(feedback));
         chosenIcon(icon).ifPresent(body::add);
-        body.add(text(Component.text("«Elegir ícono» abre un menú con todos los ítems. Si dejás el ícono vacío, se usa el ítem que tengas en la mano al tocar «Crear».",
-                NamedTextColor.GRAY)));
+        body.add(text(Component.text(icon.isBlank()
+                ? "«Elegir ícono» abre un menú con todos los ítems. Si no elegís ninguno, se usa el ítem que tengas en la mano al tocar «Crear»."
+                : "«Elegir ícono» lo cambia por otro.", NamedTextColor.GRAY)));
 
         ActionButton create = actionButton("Crear", NamedTextColor.GREEN, onSubmit((viewer, response) -> {
             String newTitle = textOf(response, TITLE_INPUT);
             String newDescription = textOf(response, DESCRIPTION_INPUT);
-            String typedIcon = textOf(response, ICON_INPUT);
-            Optional<String> chosenIcon = typedIcon.isBlank() ? Optional.of(Senders.iconInHand(viewer)) : TaskIcons.parse(typedIcon);
+            Optional<String> chosenIcon = icon.isBlank() ? Optional.of(Senders.iconInHand(viewer)) : TaskIcons.parse(icon);
             if (chosenIcon.isEmpty()) {
-                openCreate(viewer, projectId, back, failure(TaskActions.unknownIcon(typedIcon)), newTitle, newDescription, typedIcon);
+                openCreate(viewer, projectId, back, failure(TaskActions.unknownIcon(icon)), newTitle, newDescription, "");
                 return;
             }
             Actor actor = Senders.actor(viewer);
-            boolean iconIsFallback = typedIcon.isBlank() && Senders.handIsEmpty(viewer);
+            boolean iconIsFallback = icon.isBlank() && Senders.handIsEmpty(viewer);
             ActionResult created = actions.create(actor, newTitle, chosenIcon.get(), iconIsFallback, projectId);
             if (!created.success()) {
-                openCreate(viewer, projectId, back, created, newTitle, newDescription, typedIcon);
+                openCreate(viewer, projectId, back, created, newTitle, newDescription, icon);
                 return;
             }
             ActionResult result = created;
@@ -390,16 +515,14 @@ public final class TaskDialogs {
         ActionButton pick = actionButton("Elegir ícono", NamedTextColor.AQUA, onSubmit((viewer, response) -> {
             String typedTitle = textOf(response, TITLE_INPUT);
             String typedDescription = textOf(response, DESCRIPTION_INPUT);
-            String typedIcon = textOf(response, ICON_INPUT);
             iconPicker.open(viewer,
                     key -> openCreate(viewer, projectId, back, null, typedTitle, typedDescription, IconKeys.display(key)),
-                    () -> openCreate(viewer, projectId, back, null, typedTitle, typedDescription, typedIcon));
+                    () -> openCreate(viewer, projectId, back, null, typedTitle, typedDescription, icon));
         }));
         ActionButton cancel = actionButton("Cancelar", NamedTextColor.WHITE, onClick(back));
 
-        List<DialogInput> inputs = new ArrayList<>(formInputs(title, description));
-        inputs.add(iconInput(Component.text("Ícono (opcional)"), icon));
-        show(player, Component.text("Nueva tarea en " + project.get().title()), body, inputs, formWithPicker(create, pick, cancel));
+        show(player, Component.text("Nueva tarea en " + project.get().title()), body, formInputs(title, description),
+                formWithPicker(create, pick, cancel));
     }
 
     private void openEdit(Player player, String taskId, ActionResult feedback, String title, String description) {
@@ -434,7 +557,7 @@ public final class TaskDialogs {
                     : new ActionResult(true, null, messages.getFirst(), messages.subList(1, messages.size()));
             openDetail(viewer, taskId, result);
         }));
-        ActionButton cancel = actionButton("Cancelar", NamedTextColor.WHITE, onClick(viewer -> openDetail(viewer, taskId, null)));
+        ActionButton cancel = actionButton("Cancelar", NamedTextColor.WHITE, onClick(viewer -> openEditMenu(viewer, taskId)));
 
         show(player, Component.text("Editar tarea"), feedback(feedback), formInputs(title, description),
                 DialogType.confirmation(save, cancel));
@@ -458,55 +581,17 @@ public final class TaskDialogs {
                 .build();
     }
 
-    private static TextDialogInput iconInput(Component label, String icon) {
-        return DialogInput.text(ICON_INPUT, label)
-                .initial(icon)
-                .maxLength(ICON_MAX_LENGTH)
-                .width(300)
-                .build();
-    }
-
     // ---- Icon ----
 
-    private void openIcon(Player player, String taskId, ActionResult feedback, String typed) {
-        Optional<Task> task = service.task(taskId);
-        if (task.isEmpty()) {
+    /** Straight to the chest menu: picking applies the icon; closing it goes back to «Editar». */
+    private void openIcon(Player player, String taskId) {
+        if (service.task(taskId).isEmpty()) {
             openProjects(player, failure(TASK_GONE));
             return;
         }
-        List<DialogBody> body = new ArrayList<>(feedback(feedback));
-        body.add(DialogBody.item(TaskIcons.of(task.get().icon()))
-                .description(DialogBody.plainMessage(Component.text("Ícono actual: " + IconKeys.display(task.get().icon()), NamedTextColor.GRAY)))
-                .build());
-        if (!typed.equals(IconKeys.display(task.get().icon()))) {
-            chosenIcon(typed).ifPresent(body::add);
-        }
-        body.add(text(Component.text("«Elegir ícono» abre un menú con todos los ítems. " + ICON_HINT
-                + " Si lo dejás vacío, se usa el ítem que tengas en la mano.", NamedTextColor.GRAY)));
-
-        ActionButton save = actionButton("Guardar", NamedTextColor.GREEN, onSubmit((viewer, response) -> {
-            String typedIcon = textOf(response, ICON_INPUT);
-            if (typedIcon.isBlank() && Senders.handIsEmpty(viewer)) {
-                openIcon(viewer, taskId, failure("No tenés nada en la mano. " + ICON_HINT), "");
-                return;
-            }
-            Optional<String> chosenIcon = typedIcon.isBlank() ? Optional.of(Senders.iconInHand(viewer)) : TaskIcons.parse(typedIcon);
-            if (chosenIcon.isEmpty()) {
-                openIcon(viewer, taskId, failure(TaskActions.unknownIcon(typedIcon)), typedIcon);
-                return;
-            }
-            openDetail(viewer, taskId, actions.changeIcon(Senders.actor(viewer), taskId, chosenIcon.get()));
-        }));
-        ActionButton pick = actionButton("Elegir ícono", NamedTextColor.AQUA, onSubmit((viewer, response) -> {
-            String typedIcon = textOf(response, ICON_INPUT);
-            iconPicker.open(viewer,
-                    key -> openIcon(viewer, taskId, null, IconKeys.display(key)),
-                    () -> openIcon(viewer, taskId, null, typedIcon));
-        }));
-        ActionButton cancel = actionButton("Cancelar", NamedTextColor.WHITE, onClick(viewer -> openDetail(viewer, taskId, null)));
-
-        show(player, Component.text("Ícono de " + task.get().title()), body,
-                List.of(iconInput(Component.text("Ítem"), typed)), formWithPicker(save, pick, cancel));
+        iconPicker.open(player,
+                key -> openDetail(player, taskId, actions.changeIcon(Senders.actor(player), taskId, key)),
+                () -> openEditMenu(player, taskId));
     }
 
     // ---- Size ----
@@ -533,7 +618,7 @@ public final class TaskDialogs {
                     ? failure(TaskActions.unknownSize(chosen))
                     : actions.changeSize(Senders.actor(viewer), taskId, size.get()));
         }));
-        ActionButton back = actionButton("Volver", NamedTextColor.WHITE, onClick(viewer -> openDetail(viewer, taskId, null)));
+        ActionButton back = actionButton("Volver", NamedTextColor.WHITE, onClick(viewer -> openEditMenu(viewer, taskId)));
 
         show(player, Component.text("Tamaño de " + task.get().title()), body,
                 List.of(DialogInput.singleOption(SIZE_INPUT, Component.text("Tamaño"), entries).width(300).build()),
@@ -559,8 +644,8 @@ public final class TaskDialogs {
                 NamedTextColor.GRAY)));
 
         ActionButton add = actionButton("Agregar", NamedTextColor.GREEN, onSubmit((viewer, response) ->
-                openDetail(viewer, taskId, actions.addDependency(Senders.actor(viewer), taskId, textOf(response, TASK_INPUT)))));
-        ActionButton back = actionButton("Volver", NamedTextColor.WHITE, onClick(viewer -> openDetail(viewer, taskId, null)));
+                openDependencies(viewer, taskId, actions.addDependency(Senders.actor(viewer), taskId, textOf(response, TASK_INPUT)))));
+        ActionButton back = actionButton("Volver", NamedTextColor.WHITE, onClick(viewer -> openDependencies(viewer, taskId, null)));
 
         show(player, Component.text(task.get().title() + " depende de..."), body,
                 List.of(taskPicker(graph, task.get(), Component.text("Tarea"), candidates)), DialogType.confirmation(add, back));
@@ -583,8 +668,8 @@ public final class TaskDialogs {
         }
 
         ActionButton remove = actionButton("Quitar", NamedTextColor.RED, onSubmit((viewer, response) ->
-                openDetail(viewer, taskId, actions.removeDependency(Senders.actor(viewer), taskId, textOf(response, TASK_INPUT)))));
-        ActionButton back = actionButton("Volver", NamedTextColor.WHITE, onClick(viewer -> openDetail(viewer, taskId, null)));
+                openDependencies(viewer, taskId, actions.removeDependency(Senders.actor(viewer), taskId, textOf(response, TASK_INPUT)))));
+        ActionButton back = actionButton("Volver", NamedTextColor.WHITE, onClick(viewer -> openDependencies(viewer, taskId, null)));
 
         show(player, Component.text("Quitar dependencia de " + task.get().title()), List.of(),
                 List.of(taskPicker(graph, task.get(), Component.text("Dependencia"), dependencies)), DialogType.confirmation(remove, back));
@@ -625,7 +710,7 @@ public final class TaskDialogs {
 
         ActionButton move = actionButton("Mover", NamedTextColor.GREEN, onSubmit((viewer, response) ->
                 openDetail(viewer, taskId, actions.moveTask(Senders.actor(viewer), taskId, textOf(response, PROJECT_INPUT)))));
-        ActionButton back = actionButton("Volver", NamedTextColor.WHITE, onClick(viewer -> openDetail(viewer, taskId, null)));
+        ActionButton back = actionButton("Volver", NamedTextColor.WHITE, onClick(viewer -> openEditMenu(viewer, taskId)));
 
         show(player, Component.text("Mover " + task.get().title()), body,
                 List.of(DialogInput.singleOption(PROJECT_INPUT, Component.text("Proyecto"), entries).width(300).build()),
@@ -663,7 +748,7 @@ public final class TaskDialogs {
         return DialogType.multiAction(List.of(confirm, pick)).columns(2).exitAction(cancel).build();
     }
 
-    /** Preview of the icon typed or picked so far, when it names a usable item. */
+    /** Preview of the icon picked so far, when it names a usable item. */
     private static Optional<DialogBody> chosenIcon(String typed) {
         return (typed == null || typed.isBlank() ? Optional.<String>empty() : TaskIcons.parse(typed))
                 .map(key -> DialogBody.item(TaskIcons.of(key))
