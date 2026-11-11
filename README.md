@@ -2,7 +2,7 @@
 
 Plugin de Paper para organizar las tareas comunales de un servidor de Minecraft. Las tareas forman un grafo de dependencias que se muestra en la pantalla de logros (advancements) vanilla, así que los jugadores no necesitan mods en el cliente.
 
-> Última versión: **0.4.0**: proyectos en pestañas propias, ocultar ramas terminadas, selector de íconos, tamaños de tarea, aviso de desbloqueo y pestañas "+" para crear tareas y proyectos (con PacketEvents).
+> Última versión: **0.5.0**: cada tarea resuelta muestra quién la resolvió y cuándo, y una tarea resuelta se puede reabrir.
 
 ## Cómo se ve
 
