@@ -68,11 +68,8 @@ public final class TaskDialogs {
     private static final String TASK_INPUT = "tarea";
     private static final String PROJECT_INPUT = "proyecto";
     private static final String SIZE_INPUT = "tamano";
-    private static final String ICON_INPUT = "icono";
     private static final int TITLE_MAX_LENGTH = 64;
     private static final int DESCRIPTION_MAX_LENGTH = 512;
-    private static final int ICON_MAX_LENGTH = 64;
-    private static final String ICON_HINT = "Escribí el id de un ítem, por ejemplo diamond o minecraft:oak_log.";
     private static final int LIST_COLUMNS = 2;
     private static final int LIST_BUTTON_WIDTH = 150;
     private static final int ACTION_BUTTON_WIDTH = 200;
@@ -404,7 +401,7 @@ public final class TaskDialogs {
         buttons.add(actionButton("Título y descripción", NamedTextColor.WHITE,
                 onClick(viewer -> openEdit(viewer, taskId, null, task.title(), task.description()))));
         buttons.add(button(Component.text("Ícono"), Component.text("Ahora: " + IconKeys.display(task.icon()), NamedTextColor.GRAY),
-                ACTION_BUTTON_WIDTH, onClick(viewer -> openIcon(viewer, taskId, null, IconKeys.display(task.icon())))));
+                ACTION_BUTTON_WIDTH, onClick(viewer -> openIcon(viewer, taskId))));
         buttons.add(button(Component.text("Tamaño"), Component.text("Ahora: " + TaskTexts.size(task.size()), NamedTextColor.GRAY),
                 ACTION_BUTTON_WIDTH, onClick(viewer -> openSize(viewer, taskId))));
         if (graph.projects().size() > 1) {
@@ -475,7 +472,10 @@ public final class TaskDialogs {
 
     // ---- Create and edit ----
 
-    /** @param back where «Cancelar» leads */
+    /**
+     * @param back where «Cancelar» leads
+     * @param icon the icon picked in the chest menu so far, or empty to use the item in hand
+     */
     private void openCreate(Player player, String projectId, Consumer<Player> back, ActionResult feedback,
                             String title, String description, String icon) {
         Optional<Project> project = service.project(projectId);
@@ -485,23 +485,23 @@ public final class TaskDialogs {
         }
         List<DialogBody> body = new ArrayList<>(feedback(feedback));
         chosenIcon(icon).ifPresent(body::add);
-        body.add(text(Component.text("«Elegir ícono» abre un menú con todos los ítems. Si dejás el ícono vacío, se usa el ítem que tengas en la mano al tocar «Crear».",
-                NamedTextColor.GRAY)));
+        body.add(text(Component.text(icon.isBlank()
+                ? "«Elegir ícono» abre un menú con todos los ítems. Si no elegís ninguno, se usa el ítem que tengas en la mano al tocar «Crear»."
+                : "«Elegir ícono» lo cambia por otro.", NamedTextColor.GRAY)));
 
         ActionButton create = actionButton("Crear", NamedTextColor.GREEN, onSubmit((viewer, response) -> {
             String newTitle = textOf(response, TITLE_INPUT);
             String newDescription = textOf(response, DESCRIPTION_INPUT);
-            String typedIcon = textOf(response, ICON_INPUT);
-            Optional<String> chosenIcon = typedIcon.isBlank() ? Optional.of(Senders.iconInHand(viewer)) : TaskIcons.parse(typedIcon);
+            Optional<String> chosenIcon = icon.isBlank() ? Optional.of(Senders.iconInHand(viewer)) : TaskIcons.parse(icon);
             if (chosenIcon.isEmpty()) {
-                openCreate(viewer, projectId, back, failure(TaskActions.unknownIcon(typedIcon)), newTitle, newDescription, typedIcon);
+                openCreate(viewer, projectId, back, failure(TaskActions.unknownIcon(icon)), newTitle, newDescription, "");
                 return;
             }
             Actor actor = Senders.actor(viewer);
-            boolean iconIsFallback = typedIcon.isBlank() && Senders.handIsEmpty(viewer);
+            boolean iconIsFallback = icon.isBlank() && Senders.handIsEmpty(viewer);
             ActionResult created = actions.create(actor, newTitle, chosenIcon.get(), iconIsFallback, projectId);
             if (!created.success()) {
-                openCreate(viewer, projectId, back, created, newTitle, newDescription, typedIcon);
+                openCreate(viewer, projectId, back, created, newTitle, newDescription, icon);
                 return;
             }
             ActionResult result = created;
@@ -515,16 +515,14 @@ public final class TaskDialogs {
         ActionButton pick = actionButton("Elegir ícono", NamedTextColor.AQUA, onSubmit((viewer, response) -> {
             String typedTitle = textOf(response, TITLE_INPUT);
             String typedDescription = textOf(response, DESCRIPTION_INPUT);
-            String typedIcon = textOf(response, ICON_INPUT);
             iconPicker.open(viewer,
                     key -> openCreate(viewer, projectId, back, null, typedTitle, typedDescription, IconKeys.display(key)),
-                    () -> openCreate(viewer, projectId, back, null, typedTitle, typedDescription, typedIcon));
+                    () -> openCreate(viewer, projectId, back, null, typedTitle, typedDescription, icon));
         }));
         ActionButton cancel = actionButton("Cancelar", NamedTextColor.WHITE, onClick(back));
 
-        List<DialogInput> inputs = new ArrayList<>(formInputs(title, description));
-        inputs.add(iconInput(Component.text("Ícono (opcional)"), icon));
-        show(player, Component.text("Nueva tarea en " + project.get().title()), body, inputs, formWithPicker(create, pick, cancel));
+        show(player, Component.text("Nueva tarea en " + project.get().title()), body, formInputs(title, description),
+                formWithPicker(create, pick, cancel));
     }
 
     private void openEdit(Player player, String taskId, ActionResult feedback, String title, String description) {
@@ -583,55 +581,17 @@ public final class TaskDialogs {
                 .build();
     }
 
-    private static TextDialogInput iconInput(Component label, String icon) {
-        return DialogInput.text(ICON_INPUT, label)
-                .initial(icon)
-                .maxLength(ICON_MAX_LENGTH)
-                .width(300)
-                .build();
-    }
-
     // ---- Icon ----
 
-    private void openIcon(Player player, String taskId, ActionResult feedback, String typed) {
-        Optional<Task> task = service.task(taskId);
-        if (task.isEmpty()) {
+    /** Straight to the chest menu: picking applies the icon; closing it goes back to «Editar». */
+    private void openIcon(Player player, String taskId) {
+        if (service.task(taskId).isEmpty()) {
             openProjects(player, failure(TASK_GONE));
             return;
         }
-        List<DialogBody> body = new ArrayList<>(feedback(feedback));
-        body.add(DialogBody.item(TaskIcons.of(task.get().icon()))
-                .description(DialogBody.plainMessage(Component.text("Ícono actual: " + IconKeys.display(task.get().icon()), NamedTextColor.GRAY)))
-                .build());
-        if (!typed.equals(IconKeys.display(task.get().icon()))) {
-            chosenIcon(typed).ifPresent(body::add);
-        }
-        body.add(text(Component.text("«Elegir ícono» abre un menú con todos los ítems. " + ICON_HINT
-                + " Si lo dejás vacío, se usa el ítem que tengas en la mano.", NamedTextColor.GRAY)));
-
-        ActionButton save = actionButton("Guardar", NamedTextColor.GREEN, onSubmit((viewer, response) -> {
-            String typedIcon = textOf(response, ICON_INPUT);
-            if (typedIcon.isBlank() && Senders.handIsEmpty(viewer)) {
-                openIcon(viewer, taskId, failure("No tenés nada en la mano. " + ICON_HINT), "");
-                return;
-            }
-            Optional<String> chosenIcon = typedIcon.isBlank() ? Optional.of(Senders.iconInHand(viewer)) : TaskIcons.parse(typedIcon);
-            if (chosenIcon.isEmpty()) {
-                openIcon(viewer, taskId, failure(TaskActions.unknownIcon(typedIcon)), typedIcon);
-                return;
-            }
-            openDetail(viewer, taskId, actions.changeIcon(Senders.actor(viewer), taskId, chosenIcon.get()));
-        }));
-        ActionButton pick = actionButton("Elegir ícono", NamedTextColor.AQUA, onSubmit((viewer, response) -> {
-            String typedIcon = textOf(response, ICON_INPUT);
-            iconPicker.open(viewer,
-                    key -> openIcon(viewer, taskId, null, IconKeys.display(key)),
-                    () -> openIcon(viewer, taskId, null, typedIcon));
-        }));
-        ActionButton cancel = actionButton("Cancelar", NamedTextColor.WHITE, onClick(viewer -> openEditMenu(viewer, taskId)));
-
-        show(player, Component.text("Ícono de " + task.get().title()), body,
-                List.of(iconInput(Component.text("Ítem"), typed)), formWithPicker(save, pick, cancel));
+        iconPicker.open(player,
+                key -> openDetail(player, taskId, actions.changeIcon(Senders.actor(player), taskId, key)),
+                () -> openEditMenu(player, taskId));
     }
 
     // ---- Size ----
@@ -788,7 +748,7 @@ public final class TaskDialogs {
         return DialogType.multiAction(List.of(confirm, pick)).columns(2).exitAction(cancel).build();
     }
 
-    /** Preview of the icon typed or picked so far, when it names a usable item. */
+    /** Preview of the icon picked so far, when it names a usable item. */
     private static Optional<DialogBody> chosenIcon(String typed) {
         return (typed == null || typed.isBlank() ? Optional.<String>empty() : TaskIcons.parse(typed))
                 .map(key -> DialogBody.item(TaskIcons.of(key))
