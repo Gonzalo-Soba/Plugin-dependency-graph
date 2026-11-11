@@ -41,6 +41,7 @@ class TaskActionsTest {
     Path directory;
 
     private final List<String> announcements = new ArrayList<>();
+    private final List<LinkedText> linked = new ArrayList<>();
     private TaskService service;
     private TaskActions actions;
 
@@ -53,7 +54,10 @@ class TaskActionsTest {
         service = new TaskService(store, new TaskGraph(), graph -> { });
         Logger quiet = Logger.getAnonymousLogger();
         quiet.setLevel(Level.OFF);
-        return new TaskActions(service, announcements::add, quiet);
+        return new TaskActions(service, text -> {
+            linked.add(text);
+            announcements.add(text.text());
+        }, quiet);
     }
 
     private Task create(Actor actor, String title) {
@@ -298,6 +302,18 @@ class TaskActionsTest {
         }
 
         @Test
+        void announcementsLinkTheTasksTheyName() {
+            Task wood = create(ALEX, "Madera");
+            Task table = create(ALEX, "Mesa");
+            actions.addDependency(ALEX, table.id(), wood.id());
+            linked.clear();
+
+            actions.resolve(STEVE, wood.id());
+
+            assertEquals(List.of(List.of(wood.id()), List.of(table.id())), linked.stream().map(LinkedText::taskIds).toList());
+        }
+
+        @Test
         void removingTheBlockingDependencyAnnouncesTheUnlock() {
             Task wood = create(ALEX, "Madera");
             Task table = create(ALEX, "Mesa");
@@ -343,6 +359,7 @@ class TaskActionsTest {
             assertNull(result.message());
             assertFalse(result.task().resolved());
             assertEquals(List.of("↺ Steve reabrió la tarea \"Mesa\""), announcements);
+            assertEquals(List.of(task.id()), linked.getLast().taskIds());
         }
 
         @Test

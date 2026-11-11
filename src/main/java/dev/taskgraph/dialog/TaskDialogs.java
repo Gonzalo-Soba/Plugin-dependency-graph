@@ -101,6 +101,11 @@ public final class TaskDialogs {
         openCreate(player, projectId, Player::closeInventory, null, "", "", "");
     }
 
+    /** A task's screen, e.g. from a link in the chat; a task that no longer exists opens the project list. */
+    public void openTask(Player player, String taskId) {
+        openDetail(player, taskId, null);
+    }
+
     /** "Nuevo proyecto" from the "+ Proyecto" tab; cancel goes back to the game, as with {@link #openNewTask}. */
     public void openNewProject(Player player) {
         openCreateProject(player, Player::closeInventory, null, "");

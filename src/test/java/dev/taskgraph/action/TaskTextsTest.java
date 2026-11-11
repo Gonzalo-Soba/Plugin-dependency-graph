@@ -34,6 +34,17 @@ class TaskTextsTest {
     }
 
     @Test
+    void taskLinksLinkExistingTasksOnly() {
+        TaskGraph graph = new TaskGraph();
+        Task wood = graph.create("Madera", "minecraft:oak_log");
+
+        LinkedText text = TaskTexts.taskLinks(graph, List.of(wood.id(), "borrada"));
+
+        assertEquals("✘ Madera, borrada", text.text());
+        assertEquals(List.of(wood.id()), text.taskIds());
+    }
+
+    @Test
     void resolutionNamesWhoAndTheDateInTheGivenZone() {
         TaskGraph graph = new TaskGraph();
         Task wood = graph.create("Madera", "minecraft:oak_log");
@@ -93,7 +104,7 @@ class TaskTextsTest {
         TaskGraph graph = new TaskGraph();
         Task oven = graph.create("Horno", "minecraft:furnace");
 
-        assertEquals("▶ Ahora se puede hacer: \"Horno\".", TaskTexts.unlocked(graph, List.of(oven)));
+        assertEquals("▶ Ahora se puede hacer: \"Horno\".", TaskTexts.unlocked(graph, List.of(oven)).text());
     }
 
     @Test
@@ -103,8 +114,10 @@ class TaskTextsTest {
         Task oven = graph.create("Horno", "minecraft:furnace");
         Task pickaxe = graph.create("Pico de hierro", "minecraft:iron_pickaxe", null, mining.id());
 
-        assertEquals("▶ Ahora se pueden hacer: \"Horno\", \"Pico de hierro\" (en Minería).",
-                TaskTexts.unlocked(graph, List.of(oven, pickaxe)));
+        LinkedText text = TaskTexts.unlocked(graph, List.of(oven, pickaxe));
+
+        assertEquals("▶ Ahora se pueden hacer: \"Horno\", \"Pico de hierro\" (en Minería).", text.text());
+        assertEquals(List.of(oven.id(), pickaxe.id()), text.taskIds());
     }
 
     @Test
